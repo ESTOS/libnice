@@ -14,6 +14,7 @@ Build-Depends: autotools-dev,
                libgstreamer0.10-dev (>= 0.10.35.2-2),
                libgstreamer-plugins-base0.10-dev,
                libgstreamer1.0-dev,
+               libgstreamer1.5-dev,
                libgupnp-igd-1.0-dev (>= 0.1.2),
                gtk-doc-tools
 Standards-Version: 3.9.5
