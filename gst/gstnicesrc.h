@@ -68,8 +68,8 @@ struct _GstNiceSrc
   GMainContext *mainctx;
   GMainLoop *mainloop;
   GQueue *outbufs;
-  gboolean unlocked;
-  GSource *idle_source;
+  GCond outcond;
+  GThread *agent_io_thread;
 };
 
 typedef struct _GstNiceSrcClass GstNiceSrcClass;
