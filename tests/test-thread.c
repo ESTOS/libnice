@@ -48,11 +48,26 @@
 
 GMainLoop *error_loop;
 
-gint global_lagent_cands = 0;
-gint global_ragent_cands = 0;
+volatile gint global_lagent_cands = 0;
+volatile gint global_ragent_cands = 0;
 
-gint global_lagent_buffers = 0;
-gint global_ragent_buffers = 0;
+volatile gint global_lagent_buffers = 0;
+volatile gint global_ragent_buffers = 0;
+
+/* Waits about 10 seconds for @var to be NULL/FALSE */
+#define WAIT_UNTIL_UNSET(var, context)			\
+  if (var)						\
+    {							\
+      int _i;						\
+							\
+      for (_i = 0; _i < 13 && (var); _i++)		\
+	{						\
+	  g_usleep (1000 * (1 << _i));			\
+	  g_main_context_iteration (context, FALSE);	\
+	}						\
+							\
+      g_assert (!(var));				\
+    }
 
 static gboolean timer_cb (gpointer pointer)
 {
@@ -131,7 +146,8 @@ static void cb_candidate_gathering_done(NiceAgent *agent, guint stream_id, gpoin
 static void cb_nice_recv (NiceAgent *agent, guint stream_id, guint component_id, guint len, gchar *buf, gpointer user_data)
 {
   gchar data[10];
-  gint *count = NULL;
+  volatile gint *count = NULL;
+  gint count_val;
 
   if (GPOINTER_TO_UINT (user_data) == 1)
     count = &global_lagent_buffers;
@@ -140,21 +156,20 @@ static void cb_nice_recv (NiceAgent *agent, guint stream_id, guint component_id,
   else
     g_error ("Invalid agent ?");
 
-  if (*count == -1)
+  count_val = g_atomic_int_get (count);
+  if (count_val == 10)
     return;
 
   g_assert (len == 10);
 
-  memset (data, *count+'1', 10);
+  memset (data, count_val + '1', 10);
 
   g_assert (memcmp (buf, data, 10) == 0);
 
-  (*count)++;
+  g_atomic_int_inc (count);
 
-  if (*count == 10)
-    *count = -1;
-
-  if (global_ragent_buffers == -1 && global_lagent_buffers == -1)
+  if (g_atomic_int_get (&global_ragent_buffers) == 10 &&
+      g_atomic_int_get (&global_lagent_buffers) == 10)
     g_main_loop_quit (error_loop);
 }
 
@@ -196,8 +211,6 @@ int main (void)
   WSADATA w;
   WSAStartup(0x0202, &w);
 #endif
-  g_type_init ();
-  g_thread_init(NULL);
 
   lmainctx = g_main_context_new ();
   rmainctx = g_main_context_new ();
@@ -276,13 +289,8 @@ int main (void)
   /* step: run test the first time */
   g_debug ("test-thread: TEST STARTS / running test for the 1st time");
 
-#if !GLIB_CHECK_VERSION(2,31,8)
-  lthread = g_thread_create (mainloop_thread, lmainloop, TRUE, NULL);
-  rthread = g_thread_create (mainloop_thread, rmainloop, TRUE, NULL);
-#else
   lthread = g_thread_new ("lthread libnice", mainloop_thread, lmainloop);
   rthread = g_thread_new ("rthread libnice", mainloop_thread, rmainloop);
-#endif
 
   g_assert (lthread);
   g_assert (rthread);
@@ -303,13 +311,9 @@ int main (void)
   nice_agent_attach_recv (ragent, rs_id, 1, rdmainctx, cb_nice_recv,
       GUINT_TO_POINTER (2));
 
-#if !GLIB_CHECK_VERSION(2,31,8)
-  ldthread = g_thread_create (mainloop_thread, ldmainloop, TRUE, NULL);
-  rdthread = g_thread_create (mainloop_thread, rdmainloop, TRUE, NULL);
-#else
   ldthread = g_thread_new ("ldthread libnice", mainloop_thread, ldmainloop);
   rdthread = g_thread_new ("rdthread libnice", mainloop_thread, rdmainloop);
-#endif
+
   g_assert (ldthread);
   g_assert (rdthread);
 
@@ -335,11 +339,17 @@ int main (void)
   g_thread_join (rthread);
 
   /* note: verify that correct number of local candidates were reported */
-  g_assert (global_lagent_cands == 1);
-  g_assert (global_ragent_cands == 1);
+  g_assert (g_atomic_int_get (&global_lagent_cands) == 1);
+  g_assert (g_atomic_int_get (&global_ragent_cands) == 1);
+
+  g_object_add_weak_pointer (G_OBJECT (lagent), (gpointer *) &lagent);
+  g_object_add_weak_pointer (G_OBJECT (ragent), (gpointer *) &ragent);
 
   g_object_unref (lagent);
   g_object_unref (ragent);
+
+  WAIT_UNTIL_UNSET (lagent, lmainctx);
+  WAIT_UNTIL_UNSET (ragent, rmainctx);
 
   g_main_loop_unref (lmainloop);
   g_main_loop_unref (rmainloop);
