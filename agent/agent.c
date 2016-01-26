@@ -4751,7 +4751,7 @@ nice_agent_parse_remote_candidate_sdp (NiceAgent *agent, guint stream_id,
   if (ntype == -1)
     goto done;
 
-  if (g_strcmp0 (transport, "UDP") == 0) {
+  if (g_ascii_strcasecmp (transport, "UDP") == 0) {
     candidate = nice_candidate_new(ntype);
     candidate->component_id = component_id;
     candidate->stream_id = stream_id;
