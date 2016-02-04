@@ -42,6 +42,7 @@ ltmain.sh
 missing
 stamp-h.in
 stamp-h1
+test-driver
 
 # top level stuff
 debian
@@ -65,6 +66,8 @@ agent/test-fallback
 agent/test-fullmode
 agent/test-restart
 agent/test-thread
+agent/Nice-*.gir
+agent/Nice-*.typelib
 
 
 # stun/ stuff
@@ -90,6 +93,7 @@ stun/tests/test-conncheck
 stun/tests/test-format
 stun/tests/test-hmac
 stun/tests/test-parse
+stun/usages/.dirstamp
 
 # local/ stuff
 local/liblocal.la
@@ -133,6 +137,7 @@ tests/test-build-io-stream
 tests/test-dribble
 tests/test-fallback
 tests/test-fullmode
+tests/test-icetcp
 tests/test-io-stream-cancelling
 tests/test-io-stream-closing-read
 tests/test-io-stream-closing-write
@@ -142,8 +147,11 @@ tests/test-send-recv
 tests/test-mainloop
 tests/test-priority
 tests/test-pseudotcp
+tests/test-pseudotcp-fin
 tests/test-pseudotcp-fuzzy
+tests/test-pseudotcp-fin
 tests/test-restart
+tests/test-tcp
 tests/test-thread
 tests/test-new-dribble
 
@@ -165,6 +173,7 @@ docs/reference/libnice/tmpl
 docs/reference/libnice/xml
 
 # win32 stuff
+win32/vs9/libnice.def
 win32/vs9/*.user
 win32/vs9/libnice.ncb
 win32/vs9/libnice.suo
@@ -172,3 +181,6 @@ win32/vs9/libnice/
 glib/
 *.exe
 ar-lib
+
+# Code coverage
+lcov/

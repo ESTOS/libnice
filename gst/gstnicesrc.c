@@ -48,6 +48,14 @@ GST_DEBUG_CATEGORY_STATIC (nicesrc_debug);
 
 #define BUFFER_SIZE (65536)
 
+static gboolean
+gst_nice_src_start (
+    GstBaseSrc *basesrc);
+
+static gboolean
+gst_nice_src_stop (
+    GstBaseSrc *basesrc);
+
 static GstFlowReturn
 gst_nice_src_create (
   GstPushSrc *basesrc,
@@ -55,10 +63,6 @@ gst_nice_src_create (
 
 static gboolean
 gst_nice_src_unlock (
-    GstBaseSrc *basesrc);
-
-static gboolean
-gst_nice_src_unlock_stop (
     GstBaseSrc *basesrc);
 
 static void
@@ -116,8 +120,9 @@ gst_nice_src_class_init (GstNiceSrcClass *klass)
   gstpushsrc_class->create = GST_DEBUG_FUNCPTR (gst_nice_src_create);
 
   gstbasesrc_class = (GstBaseSrcClass *) klass;
+  gstbasesrc_class->start = GST_DEBUG_FUNCPTR (gst_nice_src_start);
+  gstbasesrc_class->stop = GST_DEBUG_FUNCPTR (gst_nice_src_stop);
   gstbasesrc_class->unlock = GST_DEBUG_FUNCPTR (gst_nice_src_unlock);
-  gstbasesrc_class->unlock_stop = GST_DEBUG_FUNCPTR (gst_nice_src_unlock_stop);
 
   gobject_class = (GObjectClass *) klass;
   gobject_class->set_property = gst_nice_src_set_property;
@@ -179,9 +184,83 @@ gst_nice_src_init (GstNiceSrc *src)
   src->component_id = 0;
   src->mainctx = g_main_context_new ();
   src->mainloop = g_main_loop_new (src->mainctx, FALSE);
-  src->unlocked = FALSE;
-  src->idle_source = NULL;
   src->outbufs = g_queue_new ();
+  src->agent_io_thread = NULL;
+  g_cond_init (&src->outcond);
+}
+
+static gpointer
+gst_nice_src_agent_io_thread (gpointer data)
+{
+  GstNiceSrc *nicesrc = GST_NICE_SRC (data);
+
+  GST_INFO_OBJECT (nicesrc, "starting agent io thread");
+  g_main_loop_run (nicesrc->mainloop);
+  GST_INFO_OBJECT (nicesrc, "exiting agent io thread");
+
+  return NULL;
+}
+
+static gboolean
+main_loop_running_cb (gpointer data)
+{
+  GstNiceSrc *nicesrc = GST_NICE_SRC (data);
+
+  GST_OBJECT_LOCK (nicesrc);
+  /* _start() and _stop() could both be waiting for the mainloop to start so we
+   * need to broadcast */
+  g_cond_broadcast (&nicesrc->outcond);
+  GST_OBJECT_UNLOCK (nicesrc);
+
+  return FALSE;
+}
+
+static gboolean
+gst_nice_src_start (GstBaseSrc * basesrc)
+{
+  GstNiceSrc *nicesrc = GST_NICE_SRC (basesrc);
+  GSource *source;
+  gchar *thread_name;
+
+  GST_OBJECT_LOCK (nicesrc);
+  source = g_idle_source_new ();
+  g_source_set_callback (source,
+      (GSourceFunc) main_loop_running_cb, nicesrc, NULL);
+  g_source_attach (source, nicesrc->mainctx);
+  g_source_unref (source);
+
+  thread_name = g_strdup_printf ("%s:agent_io", GST_OBJECT_NAME (nicesrc));
+  nicesrc->agent_io_thread = g_thread_new (thread_name, gst_nice_src_agent_io_thread, nicesrc);
+  g_free (thread_name);
+  /* wait until the agent thread starts spinning the mainloop or _stop() is
+   * called */
+  while (GST_BASE_SRC_IS_STARTING (basesrc) &&
+      !g_main_loop_is_running (nicesrc->mainloop))
+    g_cond_wait (&nicesrc->outcond, GST_OBJECT_GET_LOCK (nicesrc));
+  GST_OBJECT_UNLOCK (nicesrc);
+
+  return TRUE;
+}
+
+static gboolean
+gst_nice_src_stop (GstBaseSrc * basesrc)
+{
+  GstNiceSrc *nicesrc = GST_NICE_SRC (basesrc);
+  GThread *agent_io_thread = NULL;
+
+  GST_OBJECT_LOCK (nicesrc);
+  /* here we wait for the agent thread created in _start() to be scheduled so
+   * that we don't risk calling _quit() first and then _run() on the mainloop */
+  while (!g_main_loop_is_running (nicesrc->mainloop))
+    g_cond_wait (&nicesrc->outcond, GST_OBJECT_GET_LOCK (nicesrc));
+  g_main_loop_quit (nicesrc->mainloop);
+  agent_io_thread = nicesrc->agent_io_thread;
+  nicesrc->agent_io_thread = NULL;
+  GST_OBJECT_UNLOCK (nicesrc);
+
+  g_thread_join (agent_io_thread);
+
+  return TRUE;
 }
 
 static void
@@ -205,28 +284,10 @@ gst_nice_src_read_callback (NiceAgent *agent,
   buffer = gst_buffer_new_and_alloc (len);
   memcpy (GST_BUFFER_DATA (buffer), buf, len);
 #endif
-  g_queue_push_tail (nicesrc->outbufs, buffer);
-
-  g_main_loop_quit (nicesrc->mainloop);
-}
-
-static gboolean
-gst_nice_src_unlock_idler (gpointer data)
-{
-  GstNiceSrc *nicesrc = GST_NICE_SRC (data);
-
   GST_OBJECT_LOCK (nicesrc);
-  if (nicesrc->unlocked)
-    g_main_loop_quit (nicesrc->mainloop);
-
-  if (nicesrc->idle_source) {
-    g_source_destroy (nicesrc->idle_source);
-    g_source_unref (nicesrc->idle_source);
-    nicesrc->idle_source = NULL;
-  }
+  g_queue_push_tail (nicesrc->outbufs, buffer);
+  g_cond_signal (&nicesrc->outcond);
   GST_OBJECT_UNLOCK (nicesrc);
-
-  return FALSE;
 }
 
 static gboolean
@@ -235,33 +296,7 @@ gst_nice_src_unlock (GstBaseSrc *src)
   GstNiceSrc *nicesrc = GST_NICE_SRC (src);
 
   GST_OBJECT_LOCK (src);
-  nicesrc->unlocked = TRUE;
-
-  g_main_loop_quit (nicesrc->mainloop);
-
-  if (!nicesrc->idle_source) {
-    nicesrc->idle_source = g_idle_source_new ();
-    g_source_set_priority (nicesrc->idle_source, G_PRIORITY_HIGH);
-    g_source_set_callback (nicesrc->idle_source, gst_nice_src_unlock_idler, src, NULL);
-    g_source_attach (nicesrc->idle_source, g_main_loop_get_context (nicesrc->mainloop));
-  }
-  GST_OBJECT_UNLOCK (src);
-
-  return TRUE;
-}
-
-static gboolean
-gst_nice_src_unlock_stop (GstBaseSrc *src)
-{
-  GstNiceSrc *nicesrc = GST_NICE_SRC (src);
-
-  GST_OBJECT_LOCK (src);
-  nicesrc->unlocked = FALSE;
-  if (nicesrc->idle_source) {
-    g_source_destroy (nicesrc->idle_source);
-    g_source_unref(nicesrc->idle_source);
-  }
-  nicesrc->idle_source = NULL;
+  g_cond_signal (&nicesrc->outcond);
   GST_OBJECT_UNLOCK (src);
 
   return TRUE;
@@ -277,20 +312,12 @@ gst_nice_src_create (
   GST_LOG_OBJECT (nicesrc, "create called");
 
   GST_OBJECT_LOCK (basesrc);
-  if (nicesrc->unlocked) {
-    GST_OBJECT_UNLOCK (basesrc);
-#if GST_CHECK_VERSION (1,0,0)
-    return GST_FLOW_FLUSHING;
-#else
-    return GST_FLOW_WRONG_STATE;
-#endif
-  }
-  GST_OBJECT_UNLOCK (basesrc);
-
   if (g_queue_is_empty (nicesrc->outbufs))
-    g_main_loop_run (nicesrc->mainloop);
+    g_cond_wait (&nicesrc->outcond, GST_OBJECT_GET_LOCK (nicesrc));
 
   *buffer = g_queue_pop_head (nicesrc->outbufs);
+  GST_OBJECT_UNLOCK (basesrc);
+
   if (*buffer != NULL) {
     GST_LOG_OBJECT (nicesrc, "Got buffer, pushing");
     return GST_FLOW_OK;
@@ -322,9 +349,12 @@ gst_nice_src_dispose (GObject *object)
     g_main_context_unref (src->mainctx);
   src->mainctx = NULL;
 
-  if (src->outbufs)
+  if (src->outbufs) {
+    g_queue_foreach (src->outbufs, (GFunc) gst_buffer_unref, NULL);
     g_queue_free (src->outbufs);
+  }
   src->outbufs = NULL;
+  g_cond_clear (&src->outcond);
 
   G_OBJECT_CLASS (gst_nice_src_parent_class)->dispose (object);
 }
@@ -401,32 +431,57 @@ gst_nice_src_change_state (GstElement * element, GstStateChange transition)
 
   switch (transition) {
     case GST_STATE_CHANGE_NULL_TO_READY:
-      if (src->agent == NULL || src->stream_id == 0 || src->component_id == 0)
+      if (src->agent == NULL)
         {
           GST_ERROR_OBJECT (element,
               "Trying to start Nice source without an agent set");
           return GST_STATE_CHANGE_FAILURE;
         }
-      else
-        {
-          nice_agent_attach_recv (src->agent, src->stream_id, src->component_id,
-              src->mainctx, gst_nice_src_read_callback, (gpointer) src);
-        }
+      else if (src->stream_id == 0)
+          {
+            GST_ERROR_OBJECT (element,
+                "Trying to start Nice source without a stream set");
+            return GST_STATE_CHANGE_FAILURE;
+          }
+      else if (src->component_id == 0)
+          {
+            GST_ERROR_OBJECT (element,
+                "Trying to start Nice source without a component set");
+            return GST_STATE_CHANGE_FAILURE;
+          }
       break;
-    case GST_STATE_CHANGE_READY_TO_NULL:
+    case GST_STATE_CHANGE_PAUSED_TO_READY:
       nice_agent_attach_recv (src->agent, src->stream_id, src->component_id,
           src->mainctx, NULL, NULL);
+      GST_OBJECT_LOCK (src);
+      g_queue_foreach (src->outbufs, (GFunc) gst_buffer_unref, NULL);
+      g_queue_clear (src->outbufs);
+      GST_OBJECT_UNLOCK (src);
       break;
     case GST_STATE_CHANGE_READY_TO_PAUSED:
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
     case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-    case GST_STATE_CHANGE_PAUSED_TO_READY:
+    case GST_STATE_CHANGE_READY_TO_NULL:
     default:
       break;
   }
 
   ret = GST_ELEMENT_CLASS (gst_nice_src_parent_class)->change_state (element,
       transition);
+
+  switch (transition) {
+    case GST_STATE_CHANGE_READY_TO_PAUSED:
+      nice_agent_attach_recv (src->agent, src->stream_id, src->component_id,
+          src->mainctx, gst_nice_src_read_callback, (gpointer) src);
+      break;
+    case GST_STATE_CHANGE_NULL_TO_READY:
+    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+    case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+    case GST_STATE_CHANGE_PAUSED_TO_READY:
+    case GST_STATE_CHANGE_READY_TO_NULL:
+    default:
+      break;
+  }
 
   return ret;
 }

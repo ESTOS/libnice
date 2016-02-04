@@ -42,7 +42,7 @@
 
 #include <glib.h>
 
-typedef struct _Component Component;
+typedef struct _NiceComponent NiceComponent;
 
 #include "agent.h"
 #include "agent-priv.h"
@@ -74,7 +74,7 @@ struct _CandidatePairKeepalive
   guint stream_id;
   guint component_id;
   StunTimer timer;
-  uint8_t stun_buffer[STUN_MAX_MESSAGE_SIZE];
+  uint8_t stun_buffer[STUN_MAX_MESSAGE_SIZE_IPV6];
   StunMessage stun_message;
 };
 
@@ -82,7 +82,7 @@ struct _CandidatePair
 {
   NiceCandidate *local;
   NiceCandidate *remote;
-  guint64 priority;           /**< candidate pair priority */
+  guint64 priority;           /* candidate pair priority */
   CandidatePairKeepalive keepalive;
 };
 
@@ -96,6 +96,9 @@ struct _IncomingCheck
   uint16_t username_len;
 };
 
+void
+incoming_check_free (IncomingCheck *icheck);
+
 /* A pair of a socket and the GSource which polls it from the main loop. All
  * GSources in a Component must be attached to the same main context:
  * component->ctx.
@@ -107,7 +110,7 @@ struct _IncomingCheck
 typedef struct {
   NiceSocket *socket;
   GSource *source;
-  Component *component;
+  NiceComponent *component;
 } SocketSource;
 
 
@@ -134,59 +137,76 @@ io_callback_data_new (const guint8 *buf, gsize buf_len);
 void
 io_callback_data_free (IOCallbackData *data);
 
+#define NICE_TYPE_COMPONENT nice_component_get_type()
+#define NICE_COMPONENT(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST ((obj), NICE_TYPE_COMPONENT, NiceComponent))
+#define NICE_COMPONENT_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST ((klass), NICE_TYPE_COMPONENT, NiceComponentClass))
+#define NICE_IS_COMPONENT(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE ((obj), NICE_TYPE_COMPONENT))
+#define NICE_IS_COMPONENT_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_TYPE ((klass), NICE_TYPE_COMPONENT))
+#define NICE_COMPONENT_GET_CLASS(obj) \
+  (G_TYPE_INSTANCE_GET_CLASS ((obj), NICE_TYPE_COMPONENT, NiceComponentClass))
 
-struct _Component
-{
+struct _NiceComponent {
+  /*< private >*/
+  GObject parent;
+
   NiceComponentType type;
-  guint id;                    /**< component id */
+  guint id;                    /* component id */
   NiceComponentState state;
-  GSList *local_candidates;    /**< list of Candidate objs */
-  GSList *remote_candidates;   /**< list of Candidate objs */
-  GSList *socket_sources;      /**< list of SocketSource objs; must only grow monotonically */
-  guint socket_sources_age;    /**< incremented when socket_sources changes */
-  GSList *incoming_checks;     /**< list of IncomingCheck objs */
-  GList *turn_servers;             /**< List of TURN servers */
-  CandidatePair selected_pair; /**< independent from checklists, 
+  GSList *local_candidates;    /* list of NiceCandidate objs */
+  GSList *remote_candidates;   /* list of NiceCandidate objs */
+  GSList *socket_sources;      /* list of SocketSource objs; must only grow monotonically */
+  guint socket_sources_age;    /* incremented when socket_sources changes */
+  GSList *incoming_checks;     /* list of IncomingCheck objs */
+  GList *turn_servers;             /* List of TurnServer objs */
+  CandidatePair selected_pair; /* independent from checklists, 
 				    see ICE 11.1. "Sending Media" (ID-19) */
-  NiceCandidate *restart_candidate; /**< for storing active remote candidate during a restart */
-  NiceCandidate *turn_candidate; /**< for storing active turn candidate if turn servers have been cleared */
+  NiceCandidate *restart_candidate; /* for storing active remote candidate during a restart */
+  NiceCandidate *turn_candidate; /* for storing active turn candidate if turn servers have been cleared */
   /* I/O handling. The main context must always be non-NULL, and is used for all
    * socket recv() operations. All io_callback emissions are invoked in this
    * context too.
    *
    * recv_messages and io_callback are mutually exclusive, but it is allowed for
    * both to be NULL if the Component is not currently ready to receive data. */
-  GMutex io_mutex;                  /**< protects io_callback, io_user_data,
+  GMutex io_mutex;                  /* protects io_callback, io_user_data,
                                          pending_io_messages and io_callback_id.
                                          immutable: can be accessed without
                                          holding the agent lock; if the agent
                                          lock is to be taken, it must always be
                                          taken before this one */
-  NiceAgentRecvFunc io_callback;    /**< function called on io cb */
-  gpointer io_user_data;            /**< data passed to the io function */
-  GQueue pending_io_messages;       /**< queue of messages which have been
+  NiceAgentRecvFunc io_callback;    /* function called on io cb */
+  gpointer io_user_data;            /* data passed to the io function */
+  GQueue pending_io_messages;       /* queue of messages which have been
                                          received but not passed to the client
                                          in an I/O callback or recv() call yet.
                                          each element is an owned
                                          IOCallbackData */
   guint io_callback_id;             /* GSource ID of the I/O callback */
 
-  GMainContext *own_ctx;            /**< own context for GSources for this
+  GMainContext *own_ctx;            /* own context for GSources for this
                                        component */
-  GMainContext *ctx;                /**< context for GSources for this
+  GMainContext *ctx;                /* context for GSources for this
                                        component (possibly set from the app) */
-  NiceInputMessage *recv_messages;  /**< unowned messages for receiving into */
-  guint n_recv_messages;            /**< length of recv_messages */
-  NiceInputMessageIter recv_messages_iter; /**< current write position in
+  NiceInputMessage *recv_messages;  /* unowned messages for receiving into */
+  guint n_recv_messages;            /* length of recv_messages */
+  NiceInputMessageIter recv_messages_iter; /* current write position in
                                                 recv_messages */
-  GError **recv_buf_error;          /**< error information about failed reads */
+  GError **recv_buf_error;          /* error information about failed reads */
 
   NiceAgent *agent;  /* unowned, immutable: can be accessed without holding the
                       * agent lock */
-  Stream *stream;  /* unowned, immutable: can be accessed without holding the
-                    * agent lock */
+  NiceStream *stream;  /* unowned, immutable: can be accessed without holding
+                        * the agent lock */
+
+  StunAgent stun_agent; /* This stun agent is used to validate all stun requests */
+
 
   GCancellable *stop_cancellable;
+  GSource *stop_cancellable_source;  /* owned */
 
   PseudoTcpSocket *tcp;
   GSource* tcp_clock;
@@ -205,60 +225,70 @@ struct _Component
   GQueue queued_tcp_packets;
 };
 
-Component *
-component_new (guint component_id, NiceAgent *agent, Stream *stream);
+typedef struct {
+  GObjectClass parent_class;
+} NiceComponentClass;
+
+GType nice_component_get_type (void);
+
+NiceComponent *
+nice_component_new (guint component_id, NiceAgent *agent, NiceStream *stream);
 
 void
-component_free (Component *cmp);
+nice_component_close (NiceComponent *component);
 
 gboolean
-component_find_pair (Component *cmp, NiceAgent *agent, const gchar *lfoundation, const gchar *rfoundation, CandidatePair *pair);
+nice_component_find_pair (NiceComponent *component, NiceAgent *agent,
+    const gchar *lfoundation, const gchar *rfoundation, CandidatePair *pair);
 
 void
-component_restart (Component *cmp);
+nice_component_restart (NiceComponent *component);
 
 void
-component_update_selected_pair (Component *component, const CandidatePair *pair);
+nice_component_update_selected_pair (NiceComponent *component,
+    const CandidatePair *pair);
 
 NiceCandidate *
-component_find_remote_candidate (const Component *component, const NiceAddress *addr, NiceCandidateTransport transport);
+nice_component_find_remote_candidate (NiceComponent *component,
+    const NiceAddress *addr, NiceCandidateTransport transport);
 
 NiceCandidate *
-component_set_selected_remote_candidate (NiceAgent *agent, Component *component,
-    NiceCandidate *candidate);
+nice_component_set_selected_remote_candidate (NiceComponent *component,
+    NiceAgent *agent, NiceCandidate *candidate);
 
 void
-component_attach_socket (Component *component, NiceSocket *nsocket);
+nice_component_attach_socket (NiceComponent *component, NiceSocket *nsocket);
+
 void
-component_detach_socket (Component *component, NiceSocket *nsocket);
+nice_component_detach_socket (NiceComponent *component, NiceSocket *nsocket);
+
 void
-component_detach_all_sockets (Component *component);
+nice_component_detach_all_sockets (NiceComponent *component);
+
 void
-component_free_socket_sources (Component *component);
+nice_component_free_socket_sources (NiceComponent *component);
 
 GSource *
-component_input_source_new (NiceAgent *agent, guint stream_id,
+nice_component_input_source_new (NiceAgent *agent, guint stream_id,
     guint component_id, GPollableInputStream *pollable_istream,
     GCancellable *cancellable);
 
 GMainContext *
-component_dup_io_context (Component *component);
+nice_component_dup_io_context (NiceComponent *component);
 void
-component_set_io_context (Component *component, GMainContext *context);
+nice_component_set_io_context (NiceComponent *component, GMainContext *context);
 void
-component_set_io_callback (Component *component,
+nice_component_set_io_callback (NiceComponent *component,
     NiceAgentRecvFunc func, gpointer user_data,
     NiceInputMessage *recv_messages, guint n_recv_messages,
     GError **error);
 void
-component_emit_io_callback (Component *component,
+nice_component_emit_io_callback (NiceComponent *component,
     const guint8 *buf, gsize buf_len);
-
 gboolean
-component_has_io_callback (Component *component);
-
+nice_component_has_io_callback (NiceComponent *component);
 void
-component_clean_turn_servers (Component *component);
+nice_component_clean_turn_servers (NiceComponent *component);
 
 
 TurnServer *

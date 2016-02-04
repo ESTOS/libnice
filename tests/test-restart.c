@@ -400,8 +400,6 @@ int main (void)
 
   WSAStartup(0x0202, &w);
 #endif
-  g_type_init ();
-  g_thread_init(NULL);
 
   global_mainloop = g_main_loop_new (NULL, FALSE);
 
@@ -414,6 +412,8 @@ int main (void)
   /* step: create the agents L and R */
   lagent = nice_agent_new (g_main_loop_get_context (global_mainloop), NICE_COMPATIBILITY_RFC5245);
   ragent = nice_agent_new (g_main_loop_get_context (global_mainloop), NICE_COMPATIBILITY_RFC5245);
+  g_object_set (G_OBJECT (lagent), "ice-tcp", FALSE,  NULL);
+  g_object_set (G_OBJECT (ragent), "ice-tcp", FALSE,  NULL);
 
 
   /* step: add a timer to catch state changes triggered by signals */

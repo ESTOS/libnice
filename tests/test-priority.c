@@ -39,28 +39,50 @@
 #endif
 
 #include "agent.h"
+#include "agent-priv.h"
+
 
 int
 main (void)
 {
   NiceCandidate *candidate;
 
-  /* test 1 */
   candidate = nice_candidate_new (NICE_CANDIDATE_TYPE_HOST);
-  g_assert (nice_candidate_ice_priority (candidate) == 0x78000200);
-  g_assert (nice_candidate_jingle_priority (candidate) == 1000);
+  nice_address_set_from_string (&candidate->addr, "127.0.0.1");
+  nice_address_set_from_string (&candidate->base_addr, "127.0.0.1");
+
+  /* test 1 */
+  g_assert_cmpuint (nice_candidate_jingle_priority (candidate), ==, 1000);
+  /* Host UDP */
+  candidate->transport = NICE_CANDIDATE_TRANSPORT_UDP;
+  candidate->component_id = 1;
+  g_assert_cmpuint (nice_candidate_ice_priority (candidate, FALSE, FALSE), ==, 0x780001FF);
+  /* Host UDP reliable */
+  g_assert_cmpuint (nice_candidate_ice_priority (candidate, TRUE, FALSE), ==, 0x3C0001FF);
+  /* Host tcp-active unreliable */
+  candidate->transport = NICE_CANDIDATE_TRANSPORT_TCP_ACTIVE;
+  g_assert_cmpuint (nice_candidate_ice_priority (candidate, FALSE, FALSE), ==, 0x3CC003FF);
+  /* Host tcp-active reliable */
+  candidate->transport = NICE_CANDIDATE_TRANSPORT_TCP_ACTIVE;
+  /* Host tcp-active reliable */
+  g_assert_cmpuint (nice_candidate_ice_priority (candidate, TRUE, FALSE), ==, 0x78C003FF);
+  /* srv-reflexive tcp-active reliable */
+  candidate->type = NICE_CANDIDATE_TYPE_SERVER_REFLEXIVE;
+  candidate->transport = NICE_CANDIDATE_TRANSPORT_TCP_ACTIVE;
+  g_assert_cmpuint (nice_candidate_ice_priority (candidate, TRUE, FALSE), ==, 0x648003FF);
+  /* nat-assisted srv-reflexive tcp-active reliable */
+  g_assert_cmpuint (nice_candidate_ice_priority (candidate, TRUE, TRUE), ==, 0x698003FF);
   nice_candidate_free (candidate);
 
   /* test 2 */
-  
-  /* 2^32*MIN(O,A) + 2*MAX(O,A) + (O>A?1:0) 
-     = 2^32*1 + 2*5000 + 0 
+  /* 2^32*MIN(O,A) + 2*MAX(O,A) + (O>A?1:0)
+     = 2^32*1 + 2*5000 + 0
      = 4294977296 */
-  g_assert (nice_candidate_pair_priority (1,5000) == 4294977296LL);
+  g_assert_cmpuint (nice_candidate_pair_priority (1,5000), ==, 4294977296LL);
 
   /* 2^32*1 + 2*5000 + 1 = 4294977297 */
-  g_assert (nice_candidate_pair_priority (5000, 1) == 4294977297LL);
-  
+  g_assert_cmpuint (nice_candidate_pair_priority (5000, 1), ==, 4294977297LL);
+
   return 0;
 }
 
