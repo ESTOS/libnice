@@ -96,7 +96,6 @@ void nice_debug_init (void)
     }
 
     stun_set_debug_handler (stun_handler);
-    nice_debug_enable (TRUE);
 
     if (flags & NICE_DEBUG_NICE_VERBOSE)
       debug_verbose_enabled = TRUE;
