@@ -2150,7 +2150,10 @@ void agent_signal_component_state_change (NiceAgent *agent, guint stream_id, gui
             TRANSITION (FAILED, CONNECTING) ||
             /* Possible by calling set_remote_candidates() without calling
              * nice_agent_gather_candidates(): */
-            TRANSITION (DISCONNECTED, CONNECTING));
+            TRANSITION (DISCONNECTED, CONNECTING)||
+            /* Possible by calling nice_agent_get_local_candidates() after
+             * set_remote_candidates() */
+            TRANSITION (CONNECTING, GATHERING));
 
 #undef TRANSITION
 
