@@ -2130,7 +2130,7 @@ void agent_signal_component_state_change (NiceAgent *agent, guint stream_id, gui
   (old_state == NICE_COMPONENT_STATE_##OLD && \
    new_state == NICE_COMPONENT_STATE_##NEW)
 
-  g_assert (/* Can (almost) always transition to FAILED (including
+  g_warn_if_fail (/* Can (almost) always transition to FAILED (including
              * DISCONNECTED → FAILED which happens if one component fails
              * before another leaves DISCONNECTED): */
             TRANSITION (DISCONNECTED, FAILED) ||
