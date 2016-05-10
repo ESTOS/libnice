@@ -16,7 +16,7 @@ DEB_CONFIGURE_EXTRA_FLAGS := --libdir=\$${prefix}/lib/$(DEB_HOST_MULTIARCH) \
 	--enable-gtk-doc \
 	--with-gstreamer-0.10 \
 	--with-gstreamer \
-	--with-gstreamer1.5 \
+	--with-gstreamer-1.5 \
 	$(NULL)
 
 include $(CURDIR)/debian/update-patches.mk

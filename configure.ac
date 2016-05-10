@@ -203,6 +203,11 @@ AC_ARG_WITH(gstreamer-0.10,
 	[with_gstreamer010=${withval}],
 	[with_gstreamer010=auto])
 
+AC_ARG_WITH(gstreamer-1.5,
+	AS_HELP_STRING([--with-gstreamer-1.5],[build GStreamer 1.5 plugin]),
+	[with_gstreamer15=${withval}],
+	[with_gstreamer15=auto])
+
 AS_IF([test "$with_gstreamer" != no], [
 
 	PKG_CHECK_MODULES(GST, [
