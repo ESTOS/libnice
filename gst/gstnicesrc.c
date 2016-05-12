@@ -65,6 +65,10 @@ static gboolean
 gst_nice_src_unlock (
     GstBaseSrc *basesrc);
 
+static gboolean
+gst_nice_src_unlock_stop (
+    GstBaseSrc *basesrc);
+
 static void
 gst_nice_src_set_property (
   GObject *object,
@@ -123,6 +127,7 @@ gst_nice_src_class_init (GstNiceSrcClass *klass)
   gstbasesrc_class->start = GST_DEBUG_FUNCPTR (gst_nice_src_start);
   gstbasesrc_class->stop = GST_DEBUG_FUNCPTR (gst_nice_src_stop);
   gstbasesrc_class->unlock = GST_DEBUG_FUNCPTR (gst_nice_src_unlock);
+  gstbasesrc_class->unlock_stop = GST_DEBUG_FUNCPTR (gst_nice_src_unlock_stop);
 
   gobject_class = (GObjectClass *) klass;
   gobject_class->set_property = gst_nice_src_set_property;
@@ -187,6 +192,7 @@ gst_nice_src_init (GstNiceSrc *src)
   src->outbufs = g_queue_new ();
   src->agent_io_thread = NULL;
   g_cond_init (&src->outcond);
+  src->flushing = FALSE;
 }
 
 static gpointer
@@ -296,7 +302,20 @@ gst_nice_src_unlock (GstBaseSrc *src)
   GstNiceSrc *nicesrc = GST_NICE_SRC (src);
 
   GST_OBJECT_LOCK (src);
+  nicesrc->flushing = TRUE;
   g_cond_signal (&nicesrc->outcond);
+  GST_OBJECT_UNLOCK (src);
+
+  return TRUE;
+}
+
+static gboolean
+gst_nice_src_unlock_stop (GstBaseSrc *src)
+{
+  GstNiceSrc *nicesrc = GST_NICE_SRC (src);
+
+  GST_OBJECT_LOCK (src);
+  nicesrc->flushing = FALSE;
   GST_OBJECT_UNLOCK (src);
 
   return TRUE;
@@ -312,7 +331,7 @@ gst_nice_src_create (
   GST_LOG_OBJECT (nicesrc, "create called");
 
   GST_OBJECT_LOCK (basesrc);
-  if (g_queue_is_empty (nicesrc->outbufs))
+  if (!nicesrc->flushing && g_queue_is_empty (nicesrc->outbufs))
     g_cond_wait (&nicesrc->outcond, GST_OBJECT_GET_LOCK (nicesrc));
 
   *buffer = g_queue_pop_head (nicesrc->outbufs);

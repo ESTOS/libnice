@@ -69,6 +69,7 @@ struct _GstNiceSrc
   GMainLoop *mainloop;
   GQueue *outbufs;
   GCond outcond;
+  gboolean flushing;
   GThread *agent_io_thread;
 };
 
