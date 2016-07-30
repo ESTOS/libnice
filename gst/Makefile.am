@@ -51,7 +51,7 @@ libgstnice15_la_SOURCES = \
 
 libgstnice15_la_LIBADD = $(COMMON_LIBADD) $(GST15_LIBS)
 
-libgstnice15_la_LDFLAGS = -module -avoid-version
+libgstnice15_la_LDFLAGS = -module -avoid-version -no-undefined
 endif
 
 if WITH_GSTREAMER010
