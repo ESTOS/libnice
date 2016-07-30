@@ -663,7 +663,7 @@ static gboolean priv_conn_keepalive_tick_unlocked (NiceAgent *agent)
                 NULL,
                 agent_to_ice_compatibility (agent));
 
-            nice_debug ("Agent %p: conncheck created %zd - %p",
+            nice_debug ("Agent %p: conncheck created %" G_GSIZE_FORMAT " - %p",
                 agent, buf_len, p->keepalive.stun_message.buffer);
 
             if (buf_len > 0) {
@@ -885,7 +885,7 @@ static void priv_turn_allocate_refresh_tick_unlocked (CandidateRefresh *cand)
     g_free (password);
   }
 
-  nice_debug ("Agent %p : Sending allocate Refresh %zd", cand->agent,
+  nice_debug ("Agent %p : Sending allocate Refresh %" G_GSIZE_FORMAT, cand->agent,
       buffer_len);
 
   if (cand->tick_source != NULL) {
@@ -1869,7 +1869,7 @@ int conn_check_send (NiceAgent *agent, CandidateCheckPair *pair)
     gchar tmpbuf[INET6_ADDRSTRLEN];
     nice_address_to_string (&pair->remote->addr, tmpbuf);
     nice_debug ("Agent %p : STUN-CC REQ to '%s:%u', socket=%u, "
-        "pair=%s (c-id:%u), tie=%llu, username='%.*s' (%" G_GSIZE_FORMAT "), "
+        "pair=%s (c-id:%u), tie=%" G_GINT64_FORMAT ", username='%.*s' (%" G_GSIZE_FORMAT "), "
         "password='%.*s' (%" G_GSIZE_FORMAT "), priority=%u.", agent,
 	     tmpbuf,
              nice_address_get_port (&pair->remote->addr),
@@ -1894,7 +1894,7 @@ int conn_check_send (NiceAgent *agent, CandidateCheckPair *pair)
         pair->local->foundation,
         agent_to_ice_compatibility (agent));
 
-    nice_debug ("Agent %p: conncheck created %zd - %p", agent, buffer_len,
+    nice_debug ("Agent %p: conncheck created %" G_GSIZE_FORMAT " - %p", agent, buffer_len,
         pair->stun_message.buffer);
 
     if (agent->compatibility == NICE_COMPATIBILITY_MSN ||
