@@ -101,6 +101,14 @@ socket_source_attach (SocketSource *socket_source, GMainContext *context)
   if (socket_source->socket->fileno == NULL)
     return;
 
+  /* Do not create a GSource for UDP turn socket, because it
+  * would duplicate the packets already received on the base
+  * UDP socket.
+  * https://gitlab.com/libnice/libnice/commit/0a2cb0a9b14a5a1a4b01ba68ab2e5a2aa965f342
+  */
+  if (socket_source->socket->type == NICE_SOCKET_TYPE_UDP_TURN)
+	  return;
+
   /* Create a source. */
   source = g_socket_create_source (socket_source->socket->fileno,
       G_IO_IN, NULL);

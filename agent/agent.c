@@ -1016,7 +1016,7 @@ nice_agent_init (NiceAgent *agent)
   agent->compatibility = NICE_COMPATIBILITY_RFC5245;
   agent->reliable = FALSE;
   agent->use_ice_udp = TRUE;
-  agent->use_ice_tcp = TRUE;
+  agent->use_ice_tcp = FALSE; // RM: "TURN-TCP to be done", see agent.c line 2266. Local host TCP not required for now, thus disabling TCP to reduce candidate burden.
 
   agent->rng = nice_rng_new ();
   priv_generate_tie_breaker (agent);
@@ -3055,6 +3055,16 @@ static gboolean priv_add_remote_candidate (
 {
   NiceComponent *component;
   NiceCandidate *candidate;
+  /*
+    Ignore remote candidate of non-accepted types
+    https://cgit.freedesktop.org/libnice/libnice/commit/?id=b0538d8c51f65019867b56a45cf90a70bef38f01
+  */
+
+  if (transport == NICE_CANDIDATE_TRANSPORT_UDP && !agent->use_ice_udp)
+	  return FALSE;
+  if (transport != NICE_CANDIDATE_TRANSPORT_UDP && !agent->use_ice_tcp)
+	  return FALSE;
+  
 
   if (!agent_find_component (agent, stream_id, component_id, NULL, &component))
     return FALSE;
@@ -5554,7 +5564,7 @@ _generate_candidate_sdp (NiceAgent *agent,
   g_string_append_printf (sdp, " typ %s", _cand_type_to_sdp (candidate->type));
   if (nice_address_is_valid (&candidate->base_addr) &&
       !nice_address_equal (&candidate->addr, &candidate->base_addr)) {
-    port = nice_address_get_port (&candidate->addr);
+    port = nice_address_get_port (&candidate->base_addr); // original code: ->addr (bug?)
     nice_address_to_string (&candidate->base_addr, ip4);
     g_string_append_printf (sdp, " raddr %s rport %d", ip4,
         port == 0 ? 9 : port);
@@ -5563,6 +5573,7 @@ _generate_candidate_sdp (NiceAgent *agent,
     g_string_append_printf (sdp, " tcptype %s",
         _transport_to_sdp_tcptype (candidate->transport));
   }
+  nice_debug("Adding local candidate to application: %s", sdp->str);
 }
 
 static void

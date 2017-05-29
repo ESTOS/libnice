@@ -1393,7 +1393,10 @@ static void priv_add_new_check_pair (NiceAgent *agent, guint stream_id, NiceComp
   pair->component_id = component->id;;
   pair->local = local;
   pair->remote = remote;
-  if (remote->type == NICE_CANDIDATE_TYPE_PEER_REFLEXIVE)
+  /* note: we use the remote sockptr only in the case of TCP transport
+     https://cgit.freedesktop.org/libnice/libnice/diff/agent/conncheck.c?id=d63e323bb29ccd002d275d93c64a369a1bf34644
+  */
+  if (local->transport == NICE_CANDIDATE_TRANSPORT_TCP_PASSIVE && remote->type == NICE_CANDIDATE_TYPE_PEER_REFLEXIVE)
     pair->sockptr = (NiceSocket *) remote->sockptr;
   else
     pair->sockptr = (NiceSocket *) local->sockptr;
@@ -1439,8 +1442,15 @@ static void priv_conn_check_add_for_candidate_pair_matched (NiceAgent *agent,
     guint stream_id, NiceComponent *component, NiceCandidate *local,
     NiceCandidate *remote, NiceCheckState initial_state)
 {
-  nice_debug ("Agent %p, Adding check pair between %s and %s", agent,
-      local->foundation, remote->foundation);
+	gchar local_addr[INET6_ADDRSTRLEN];
+	gchar remote_addr[INET6_ADDRSTRLEN];
+
+	nice_address_to_string(&local->addr, local_addr);
+	nice_address_to_string(&remote->addr, remote_addr);
+
+
+  nice_debug ("Agent %p, Adding check pair between %s(l) and %s(r), local-addr=%s, remote-addr=%s", agent,
+      local->foundation, remote->foundation, local_addr, remote_addr);
   priv_add_new_check_pair (agent, stream_id, component, local, remote,
       initial_state, FALSE);
   if (component->state == NICE_COMPONENT_STATE_CONNECTED ||
@@ -1480,6 +1490,19 @@ gboolean conn_check_add_for_candidate_pair (NiceAgent *agent,
   if (local->transport == NICE_CANDIDATE_TRANSPORT_TCP_PASSIVE) {
     return FALSE;
   }
+
+  /* don't create pairs w/o connectivity, reducing failing checks */
+  if (remote->type == NICE_CANDIDATE_TYPE_RELAYED && local->type == NICE_CANDIDATE_TYPE_HOST) {
+	  return false;
+  }
+  if (local->type == NICE_CANDIDATE_TYPE_RELAYED && remote->type == NICE_CANDIDATE_TYPE_HOST) {
+	  return false;
+  }
+  if (remote->type == NICE_CANDIDATE_TYPE_RELAYED && local->type == NICE_CANDIDATE_TYPE_RELAYED) {
+	  return false;
+  }
+
+
 
   /* note: match pairs only if transport and address family are the same */
   if (local->transport == conn_check_match_transport (remote->transport) &&
@@ -2678,11 +2701,13 @@ static gboolean priv_map_reply_to_relay_request (NiceAgent *agent, StunMessage *
                    res == STUN_USAGE_TURN_RETURN_MAPPED_SUCCESS) {
           /* case: successful allocate, create a new local candidate */
           NiceAddress niceaddr;
+		  NiceAddress niceaddr_relay;
           NiceCandidate *relay_cand;
 
           if (res == STUN_USAGE_TURN_RETURN_MAPPED_SUCCESS) {
             /* We also received our mapped address */
             nice_address_set_from_sockaddr (&niceaddr, &sockaddr.addr);
+			nice_address_set_from_sockaddr(&niceaddr_relay, &sockaddr.addr);
 
             /* TCP or TLS TURNS means the server-reflexive address was
              * on a TCP connection, which cannot be used for server-reflexive
@@ -2716,7 +2741,8 @@ static gboolean priv_map_reply_to_relay_request (NiceAgent *agent, StunMessage *
                 &niceaddr,
                 NICE_CANDIDATE_TRANSPORT_TCP_ACTIVE,
                 d->nicesock,
-                d->turn);
+                d->turn,
+				&niceaddr_relay);
 
             if (relay_cand) {
               if (agent->compatibility == NICE_COMPATIBILITY_OC2007 ||
@@ -2737,7 +2763,8 @@ static gboolean priv_map_reply_to_relay_request (NiceAgent *agent, StunMessage *
                 &niceaddr,
                 NICE_CANDIDATE_TRANSPORT_TCP_PASSIVE,
                 d->nicesock,
-                d->turn);
+                d->turn,
+				&niceaddr_relay);
           } else {
             relay_cand = discovery_add_relay_candidate (
                 d->agent,
@@ -2746,7 +2773,8 @@ static gboolean priv_map_reply_to_relay_request (NiceAgent *agent, StunMessage *
                 &niceaddr,
                 NICE_CANDIDATE_TRANSPORT_UDP,
                 d->nicesock,
-                d->turn);
+                d->turn,
+				&niceaddr_relay);
           }
 
           if (relay_cand) {

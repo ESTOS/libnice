@@ -333,26 +333,23 @@ static guint priv_highest_remote_foundation (NiceComponent *component)
 {
   GSList *i;
   guint highest = 1;
-  gchar foundation[NICE_CANDIDATE_MAX_FOUNDATION];
+  long long llFoundation = 1;
+  long long llHighestFoundation = 1;
 
-  for (highest = 1;; highest++) {
-    gboolean taken = FALSE;
-
-    g_snprintf (foundation, NICE_CANDIDATE_MAX_FOUNDATION, "remote-%u",
-        highest);
+  //g_snprintf (foundation, NICE_CANDIDATE_MAX_FOUNDATION, "remote-%u", highest);
+  /* 
+    "remote-%u" returned always with "remote-1", leading to SDP parsing errors. 
+     I now return what the meaning of the function name is.
+  */
     for (i = component->remote_candidates; i; i = i->next) {
       NiceCandidate *cand = i->data;
-      if (strncmp (foundation, cand->foundation,
-              NICE_CANDIDATE_MAX_FOUNDATION) == 0) {
-        taken = TRUE;
-        break;
-      }
+	  llFoundation = atoll(cand->foundation);
+	  if (llHighestFoundation < llFoundation) {
+		  llHighestFoundation = llFoundation;
+	  }
     }
-    if (!taken)
-      return highest;
-  }
-
-  g_return_val_if_reached (highest);
+	highest = llHighestFoundation;
+    return highest;
 }
 
 /* From RFC 5245 section 4.1.3:
@@ -469,7 +466,8 @@ static void priv_assign_remote_foundation (NiceAgent *agent, NiceCandidate *cand
   if (component) {
     next_remote_id = priv_highest_remote_foundation (component);
     g_snprintf (candidate->foundation, NICE_CANDIDATE_MAX_FOUNDATION,
-        "remote-%u", next_remote_id);
+		"%u", next_remote_id);
+//        "remote-%u", next_remote_id);
   }
 }
 
@@ -715,7 +713,8 @@ discovery_add_relay_candidate (
   NiceAddress *address,
   NiceCandidateTransport transport,
   NiceSocket *base_socket,
-  TurnServer *turn)
+  TurnServer *turn,
+  NiceAddress *niceaddr_relay_mapped)
 {
   NiceCandidate *candidate;
   NiceComponent *component;
@@ -741,7 +740,8 @@ discovery_add_relay_candidate (
     goto errors;
 
   candidate->sockptr = relay_socket;
-  candidate->base_addr = base_socket->addr;
+  //candidate->base_addr = base_socket->addr;
+  candidate->base_addr = *niceaddr_relay_mapped;
 
   if (agent->compatibility == NICE_COMPATIBILITY_GOOGLE) {
     candidate->priority = nice_candidate_jingle_priority (candidate);
