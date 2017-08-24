@@ -5,6 +5,8 @@
  *
  * (C) 2007 Nokia Corporation. All rights reserved.
  *  Contact: Kai Vehmanen
+ * (C) 2017 Collabora Ltd
+ *  Contact: Olivier Crete <olivier.crete@collabora.com>
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
@@ -40,8 +42,12 @@
 
 #include "agent.h"
 
+#include "socket/socket.h"
+
 #include <stdlib.h>
 #include <string.h>
+
+
 
 static NiceComponentState global_lagent_state[2] = { NICE_COMPONENT_STATE_LAST, NICE_COMPONENT_STATE_LAST };
 static NiceComponentState global_ragent_state[2] = { NICE_COMPONENT_STATE_LAST, NICE_COMPONENT_STATE_LAST };
@@ -54,7 +60,6 @@ static gboolean global_lagent_gathering_done = FALSE;
 static gboolean global_ragent_gathering_done = FALSE;
 static gboolean global_lagent_ibr_received = FALSE;
 static gboolean global_ragent_ibr_received = FALSE;
-static gboolean global_ready_reached = FALSE;
 static int global_lagent_cands = 0;
 static int global_ragent_cands = 0;
 static gint global_ragent_read = 0;
@@ -70,7 +75,7 @@ static void priv_print_global_status (void)
 
 static gboolean timer_cb (gpointer pointer)
 {
-  g_debug ("test-icetcp:%s: %p", G_STRFUNC, pointer);
+  g_debug ("test-drop-invalid:%s: %p", G_STRFUNC, pointer);
 
   /* signal status via a global variable */
 
@@ -80,25 +85,21 @@ static gboolean timer_cb (gpointer pointer)
   return FALSE;
 }
 
-static void cb_writable (NiceAgent*agent, guint stream_id, guint component_id)
-{
-    g_debug ("Transport is now writable, stopping mainloop");
-    g_main_loop_quit (global_mainloop);
-}
-
 static void cb_nice_recv (NiceAgent *agent, guint stream_id, guint component_id, guint len, gchar *buf, gpointer user_data)
 {
-  g_debug ("test-icetcp:%s: %p", G_STRFUNC, user_data);
+  g_debug ("test-drop-invalid:%s: %p", G_STRFUNC, user_data);
 
   /* XXX: dear compiler, these are for you: */
   (void)agent; (void)stream_id; (void)component_id; (void)buf;
 
-  /*
-   * Lets ignore stun packets that got through
+  /* Core of the test
+   * Assert on any unreleated packet received. This would include anything
+   * send before the negotiation is over.
    */
-  if (len < 8)
-    return;
-  if (strncmp ("12345678", buf, 8))
+  g_assert (len == 16);
+  g_assert (strncmp ("1234567812345678", buf, 16) == 0);
+
+  if (component_id == 2)
     return;
 
   if (GPOINTER_TO_UINT (user_data) == 2) {
@@ -110,7 +111,7 @@ static void cb_nice_recv (NiceAgent *agent, guint stream_id, guint component_id,
 
 static void cb_candidate_gathering_done(NiceAgent *agent, guint stream_id, gpointer data)
 {
-  g_debug ("test-icetcp:%s: %p", G_STRFUNC, data);
+  g_debug ("test-drop-invalid:%s: %p", G_STRFUNC, data);
 
   if (GPOINTER_TO_UINT (data) == 1)
     global_lagent_gathering_done = TRUE;
@@ -125,18 +126,10 @@ static void cb_candidate_gathering_done(NiceAgent *agent, guint stream_id, gpoin
   (void)agent;
 }
 
-static void check_loop_quit_condition (void)
-{
-  if (global_ready_reached &&
-      global_lagent_cands >= 2 && global_ragent_cands >= 2) {
-    g_main_loop_quit (global_mainloop);
-  }
-}
-
 static void cb_component_state_changed (NiceAgent *agent, guint stream_id, guint component_id, guint state, gpointer data)
 {
   gboolean ready_to_connected = FALSE;
-  g_debug ("test-icetcp:%s: %p", G_STRFUNC, data);
+  g_debug ("test-drop-invalid:%s: %p", G_STRFUNC, data);
 
   if (GPOINTER_TO_UINT (data) == 1) {
     if (global_lagent_state[component_id - 1] == NICE_COMPONENT_STATE_READY &&
@@ -157,26 +150,16 @@ static void cb_component_state_changed (NiceAgent *agent, guint stream_id, guint
   if (state == NICE_COMPONENT_STATE_FAILED)
     global_components_failed++;
 
-  g_debug ("test-icetcp: checks READY/EXIT-AT %u/%u.", global_components_ready, global_components_ready_exit);
-  g_debug ("test-icetcp: checks FAILED/EXIT-AT %u/%u.", global_components_failed, global_components_failed_exit);
+  g_debug ("test-drop-invalid: checks READY/EXIT-AT %u/%u.", global_components_ready, global_components_ready_exit);
+  g_debug ("test-drop-invalid: checks FAILED/EXIT-AT %u/%u.", global_components_failed, global_components_failed_exit);
 
   /* signal status via a global variable */
   if (global_components_ready == global_components_ready_exit &&
-      global_components_failed == global_components_failed_exit &&
-      global_ready_reached == FALSE) {
+      global_components_failed == global_components_failed_exit) {
     g_debug ("Components ready/failed achieved. Stopping mailoop");
-    global_ready_reached = TRUE;
-  }
-
-  check_loop_quit_condition ();
-
-#if 0
-  /* signal status via a global variable */
-  if (global_components_failed == global_components_failed_exit) {
     g_main_loop_quit (global_mainloop); 
     return;
   }
-#endif
 
   /* XXX: dear compiler, these are for you: */
   (void)agent; (void)stream_id; (void)data; (void)component_id;
@@ -185,14 +168,12 @@ static void cb_component_state_changed (NiceAgent *agent, guint stream_id, guint
 static void cb_new_selected_pair(NiceAgent *agent, guint stream_id, guint component_id, 
 				 gchar *lfoundation, gchar* rfoundation, gpointer data)
 {
-  g_debug ("test-icetcp:%s: %p", G_STRFUNC, data);
+  g_debug ("test-drop-invalid:%s: %p", G_STRFUNC, data);
 
   if (GPOINTER_TO_UINT (data) == 1)
     ++global_lagent_cands;
   else if (GPOINTER_TO_UINT (data) == 2)
     ++global_ragent_cands;
-
-  check_loop_quit_condition ();
 
   /* XXX: dear compiler, these are for you: */
   (void)agent; (void)stream_id; (void)component_id; (void)lfoundation; (void)rfoundation;
@@ -201,7 +182,7 @@ static void cb_new_selected_pair(NiceAgent *agent, guint stream_id, guint compon
 static void cb_new_candidate(NiceAgent *agent, guint stream_id, guint component_id, 
 			     gchar *foundation, gpointer data)
 {
-  g_debug ("test-icetcp:%s: %p", G_STRFUNC, data);
+  g_debug ("test-drop-invalid:%s: %p", G_STRFUNC, data);
 
   /* XXX: dear compiler, these are for you: */
   (void)agent; (void)stream_id; (void)data; (void)component_id; (void)foundation;
@@ -209,7 +190,7 @@ static void cb_new_candidate(NiceAgent *agent, guint stream_id, guint component_
 
 static void cb_initial_binding_request_received(NiceAgent *agent, guint stream_id, gpointer data)
 {
-  g_debug ("test-icetcp:%s: %p", G_STRFUNC, data);
+  g_debug ("test-drop-invalid:%s: %p", G_STRFUNC, data);
 
   if (GPOINTER_TO_UINT (data) == 1)
     global_lagent_ibr_received = TRUE;
@@ -228,26 +209,37 @@ static void cb_initial_binding_request_received(NiceAgent *agent, guint stream_i
 static void set_candidates (NiceAgent *from, guint from_stream,
     NiceAgent *to, guint to_stream, guint component)
 {
-  GSList *cands = NULL, *i;
+  GSList *cands = NULL;
+  GSList *peer_cands = NULL;
+  GSList *item1, *item2;
 
   cands = nice_agent_get_local_candidates (from, from_stream, component);
+  peer_cands = nice_agent_get_local_candidates (to, to_stream, component);
 
- restart:
-  for (i = cands; i; i = i->next) {
-    NiceCandidate *cand = i->data;
-    if (cand->transport == NICE_CANDIDATE_TRANSPORT_UDP) {
-      cands = g_slist_remove (cands, cand);
-      nice_candidate_free (cand);
-      goto restart;
+  /*
+   * Core of the test:
+   *
+   * Send packets that shoudl be dropped.
+   */
+
+  for (item1 = cands; item1; item1 = item1->next) {
+    NiceCandidate *cand = item1->data;
+    NiceSocket *nicesock = cand->sockptr;
+
+    g_assert (nicesock);
+
+    for (item2 = peer_cands; item2; item2 = item2->next) {
+      NiceCandidate *target_cand = item2->data;
+
+      nice_socket_send (nicesock, &target_cand->addr, 12, "123456789AB");
     }
-  }
 
+  }
 
   nice_agent_set_remote_candidates (to, to_stream, component, cands);
 
-  for (i = cands; i; i = i->next)
-    nice_candidate_free ((NiceCandidate *) i->data);
-  g_slist_free (cands);
+  g_slist_free_full (cands, (GDestroyNotify) nice_candidate_free);
+  g_slist_free_full (peer_cands, (GDestroyNotify) nice_candidate_free);
 }
 
 static void set_credentials (NiceAgent *lagent, guint lstream,
@@ -284,7 +276,6 @@ static int run_full_test (NiceAgent *lagent, NiceAgent *ragent, NiceAddress *bas
     global_ragent_ibr_received = FALSE;
   global_lagent_cands =
     global_ragent_cands = 0;
-  global_ready_reached = FALSE;
 
   g_object_set (G_OBJECT (lagent), "controlling-mode", TRUE, NULL);
   g_object_set (G_OBJECT (ragent), "controlling-mode", FALSE, NULL);
@@ -296,8 +287,16 @@ static int run_full_test (NiceAgent *lagent, NiceAgent *ragent, NiceAddress *bas
   g_assert (ls_id > 0);
   g_assert (rs_id > 0);
 
-  /* Gather candidates */
+  /* Gather candidates and test nice_agent_set_port_range */
+  nice_agent_set_port_range (lagent, ls_id, 1, 10000, 10000);
+  nice_agent_set_port_range (lagent, ls_id, 2, 10001, 10001);
+  nice_agent_set_port_range (ragent, rs_id, 1, 12345, 12345);
+  nice_agent_set_port_range (ragent, rs_id, 2, 10000, 10001);
   g_assert (nice_agent_gather_candidates (lagent, ls_id) == TRUE);
+  g_assert (nice_agent_gather_candidates (ragent, rs_id) == FALSE);
+  g_assert (nice_agent_get_local_candidates (ragent, rs_id, 1) == NULL);
+  g_assert (nice_agent_get_local_candidates (ragent, rs_id, 2) == NULL);
+  nice_agent_set_port_range (ragent, rs_id, 2, 10000, 10002);
   g_assert (nice_agent_gather_candidates (ragent, rs_id) == TRUE);
 
   {
@@ -305,18 +304,41 @@ static int run_full_test (NiceAgent *lagent, NiceAgent *ragent, NiceAddress *bas
     NiceCandidate *cand = NULL;
 
     cands = nice_agent_get_local_candidates (lagent, ls_id, 1);
-    g_assert (g_slist_length (cands) == 2);
+    g_assert (g_slist_length (cands) == 1);
     cand = cands->data;
     g_assert (cand->type == NICE_CANDIDATE_TYPE_HOST);
-    g_assert (cand->transport == NICE_CANDIDATE_TRANSPORT_TCP_ACTIVE ||
-              cand->transport == NICE_CANDIDATE_TRANSPORT_TCP_PASSIVE);
-    cand = cands->next->data;
-    g_assert (cand->type == NICE_CANDIDATE_TYPE_HOST);
-    g_assert (cand->transport == NICE_CANDIDATE_TRANSPORT_TCP_ACTIVE ||
-              cand->transport == NICE_CANDIDATE_TRANSPORT_TCP_PASSIVE);
+    g_assert (nice_address_get_port (&cand->addr) == 10000);
     for (i = cands; i; i = i->next)
       nice_candidate_free ((NiceCandidate *) i->data);
     g_slist_free (cands);
+
+    cands = nice_agent_get_local_candidates (lagent, ls_id, 2);
+    g_assert (g_slist_length (cands) == 1);
+    cand = cands->data;
+    g_assert (cand->type == NICE_CANDIDATE_TYPE_HOST);
+    g_assert (nice_address_get_port (&cand->addr) == 10001);
+    for (i = cands; i; i = i->next)
+      nice_candidate_free ((NiceCandidate *) i->data);
+    g_slist_free (cands);
+
+    cands = nice_agent_get_local_candidates (ragent, rs_id, 1);
+    g_assert (g_slist_length (cands) == 1);
+    cand = cands->data;
+    g_assert (cand->type == NICE_CANDIDATE_TYPE_HOST);
+    g_assert (nice_address_get_port (&cand->addr) == 12345);
+    for (i = cands; i; i = i->next)
+      nice_candidate_free ((NiceCandidate *) i->data);
+    g_slist_free (cands);
+
+    cands = nice_agent_get_local_candidates (ragent, rs_id, 2);
+    g_assert (g_slist_length (cands) == 1);
+    cand = cands->data;
+    g_assert (cand->type == NICE_CANDIDATE_TYPE_HOST);
+    g_assert (nice_address_get_port (&cand->addr) == 10002);
+    for (i = cands; i; i = i->next)
+      nice_candidate_free ((NiceCandidate *) i->data);
+    g_slist_free (cands);
+
   }
 
   /* step: attach to mainloop (needed to register the fds) */
@@ -337,7 +359,7 @@ static int run_full_test (NiceAgent *lagent, NiceAgent *ragent, NiceAddress *bas
    *       (see timer_cb() above) */
   if (global_lagent_gathering_done != TRUE ||
       global_ragent_gathering_done != TRUE) {
-    g_debug ("test-icetcp: Added streams, running mainloop until 'candidate-gathering-done'...");
+    g_debug ("test-drop-invalid: Added streams, running mainloop until 'candidate-gathering-done'...");
     g_main_loop_run (global_mainloop);
     g_assert (global_lagent_gathering_done == TRUE);
     g_assert (global_ragent_gathering_done == TRUE);
@@ -351,7 +373,7 @@ static int run_full_test (NiceAgent *lagent, NiceAgent *ragent, NiceAddress *bas
   set_candidates (lagent, ls_id, ragent, rs_id, NICE_COMPONENT_TYPE_RTP);
   set_candidates (lagent, ls_id, ragent, rs_id, NICE_COMPONENT_TYPE_RTCP);
 
-  g_debug ("test-icetcp: Set properties, next running mainloop until connectivity checks succeed...");
+  g_debug ("test-drop-invalid: Set properties, next running mainloop until connectivity checks succeed...");
 
   /* step: run the mainloop until connectivity checks succeed
    *       (see timer_cb() above) */
@@ -361,31 +383,35 @@ static int run_full_test (NiceAgent *lagent, NiceAgent *ragent, NiceAddress *bas
   g_assert (global_lagent_ibr_received == TRUE);
   g_assert (global_ragent_ibr_received == TRUE);
 
+  /* note: Send a packet from another address */
+  /* These should also be ignored */
+  {
+    NiceCandidate *local_cand = NULL;
+    NiceCandidate *remote_cand = NULL;
+    NiceSocket *tmpsock;
+
+    g_assert (nice_agent_get_selected_pair (lagent, ls_id, 1, &local_cand,
+            &remote_cand));
+    g_assert (local_cand);
+    g_assert (remote_cand);
+
+    tmpsock = nice_udp_bsd_socket_new (NULL);
+    nice_socket_send (tmpsock, &remote_cand->addr, 4, "ABCD");
+    nice_socket_send (tmpsock, &local_cand->addr, 5, "ABCDE");
+    nice_socket_free (tmpsock);
+  }
+
   /* note: test payload send and receive */
   global_ragent_read = 0;
   ret = nice_agent_send (lagent, ls_id, 1, 16, "1234567812345678");
-  if (ret == -1)
-  {
-    gboolean reliable = FALSE;
-    g_object_get (G_OBJECT (lagent), "reliable", &reliable, NULL);
-    g_debug ("Sending data returned -1 in %s mode", reliable?"Reliable":"Non-reliable");
-    if (reliable) {
-      gulong signal_handler;
-      signal_handler = g_signal_connect (G_OBJECT (lagent),
-          "reliable-transport-writable", G_CALLBACK (cb_writable), NULL);
-      g_debug ("Running mainloop until transport is writable");
-      g_main_loop_run (global_mainloop);
-      g_signal_handler_disconnect(G_OBJECT (lagent), signal_handler);
-
-      ret = nice_agent_send (lagent, ls_id, 1, 16, "1234567812345678");
-    }
-  }
+  g_assert (ret != -1);
   g_debug ("Sent %d bytes", ret);
   g_assert (ret == 16);
-  g_main_loop_run (global_mainloop);
+  while (global_ragent_read != 16)
+    g_main_context_iteration (NULL, TRUE);
   g_assert (global_ragent_read == 16);
 
-  g_debug ("test-icetcp: Ran mainloop, removing streams...");
+  g_debug ("test-drop-invalid: Ran mainloop, removing streams...");
 
   /* step: clean up resources and exit */
 
@@ -416,10 +442,12 @@ int main (void)
   ragent = nice_agent_new (g_main_loop_get_context (global_mainloop),
       NICE_COMPATIBILITY_RFC5245);
 
-  g_object_set (G_OBJECT (lagent), "ice-udp", FALSE,  NULL);
-  g_object_set (G_OBJECT (ragent), "ice-udp", FALSE,  NULL);
-  nice_agent_set_software (lagent, "Test-icetcp, Left Agent");
-  nice_agent_set_software (ragent, "Test-icetcp, Right Agent");
+  g_object_set (G_OBJECT (lagent), "ice-tcp", FALSE,  NULL);
+  g_object_set (G_OBJECT (ragent), "ice-tcp", FALSE,  NULL);
+
+
+  nice_agent_set_software (lagent, "test-drop-invalid, Left Agent");
+  nice_agent_set_software (ragent, "test-drop-invalid, Right Agent");
 
   /* step: add a timer to catch state changes triggered by signals */
   timer_id = g_timeout_add (30000, timer_cb, NULL);
@@ -453,8 +481,12 @@ int main (void)
       G_CALLBACK (cb_initial_binding_request_received),
       GUINT_TO_POINTER (2));
 
+  g_object_set (G_OBJECT (lagent), "upnp", FALSE,  NULL);
+  g_object_set (G_OBJECT (ragent), "upnp", FALSE,  NULL);
+
+
   /* step: run test the first time */
-  g_debug ("test-icetcp: TEST STARTS / running test for the 1st time");
+  g_debug ("test-drop-invalid: TEST STARTS / running test for the 1st time");
   result = run_full_test (lagent, ragent, &baseaddr, 4 ,0);
   priv_print_global_status ();
   g_assert (result == 0);
@@ -462,23 +494,14 @@ int main (void)
   g_assert (global_lagent_state[1] == NICE_COMPONENT_STATE_READY);
   g_assert (global_ragent_state[0] == NICE_COMPONENT_STATE_READY);
   g_assert (global_ragent_state[1] == NICE_COMPONENT_STATE_READY);
-  /* note: verify that correct number of local candidates were reported */
-  g_assert (global_lagent_cands >= 2);
-  g_assert (global_ragent_cands >= 2);
+  /* When using TURN, we get peer reflexive candidates for the host cands
+     that we removed so we can get another new_selected_pair signal later
+     depending on timing/racing, we could double (or not) the amount we expected
+  */
 
-
-  /* step: run test again without unref'ing agents */
-  g_debug ("test-icetcp: TEST STARTS / running test for the 2nd time");
-  result = run_full_test (lagent, ragent, &baseaddr, 4, 0);
-  priv_print_global_status ();
-  g_assert (result == 0);
-  g_assert (global_lagent_state[0] == NICE_COMPONENT_STATE_READY);
-  g_assert (global_lagent_state[1] == NICE_COMPONENT_STATE_READY);
-  g_assert (global_ragent_state[0] == NICE_COMPONENT_STATE_READY);
-  g_assert (global_ragent_state[1] == NICE_COMPONENT_STATE_READY);
   /* note: verify that correct number of local candidates were reported */
-  g_assert (global_lagent_cands >= 2);
-  g_assert (global_ragent_cands >= 2);
+  g_assert (global_lagent_cands == 2);
+  g_assert (global_ragent_cands == 2);
 
   g_object_unref (lagent);
   g_object_unref (ragent);

@@ -64,8 +64,8 @@ G_BEGIN_DECLS
 #define NICE_CANDIDATE_TYPE_PREF_PEER_REFLEXIVE       110
 #define NICE_CANDIDATE_TYPE_PREF_NAT_ASSISTED         105
 #define NICE_CANDIDATE_TYPE_PREF_SERVER_REFLEXIVE     100
-#define NICE_CANDIDATE_TYPE_PREF_UDP_TUNNELED          75
-#define NICE_CANDIDATE_TYPE_PREF_RELAYED               10
+#define NICE_CANDIDATE_TYPE_PREF_RELAYED_UDP           30
+#define NICE_CANDIDATE_TYPE_PREF_RELAYED               20
 
 /* Priority preference constants for MS-ICE compatibility */
 #define NICE_CANDIDATE_TRANSPORT_MS_PREF_UDP           15
@@ -230,7 +230,23 @@ nice_candidate_free (NiceCandidate *candidate);
 NiceCandidate *
 nice_candidate_copy (const NiceCandidate *candidate);
 
-GType nice_candidate_get_type (void);
+/**
+ * nice_candidate_equal_target:
+ * @candidate1: A candidate
+ * @candidate2: A candidate
+ *
+ * Verifies that the candidates point to the same place, meaning they have
+ * the same transport and the same address. It ignores all other aspects.
+ *
+ * Returns: %TRUE if the candidates point to the same place
+ *
+ * Since: 0.1.15
+ */
+gboolean
+nice_candidate_equal_target (const NiceCandidate *candidate1,
+    const NiceCandidate *candidate2);
+
+  GType nice_candidate_get_type (void);
 
 /**
  * NICE_TYPE_CANDIDATE:

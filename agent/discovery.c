@@ -393,7 +393,6 @@ static void priv_assign_foundation (NiceAgent *agent, NiceCandidate *candidate)
 
 	if (candidate->type == n->type &&
             candidate->transport == n->transport &&
-            candidate->stream_id == n->stream_id &&
 	    nice_address_equal_no_port (&candidate->base_addr, &n->base_addr) &&
             (candidate->type != NICE_CANDIDATE_TYPE_RELAYED ||
                 priv_compare_turn_servers (candidate->turn, n->turn)) &&
@@ -550,6 +549,8 @@ HostCandidateResult discovery_add_local_host_candidate (
         agent->reliable, FALSE);
   }
 
+  candidate->priority = ensure_unique_priority (component,
+      candidate->priority);
   priv_generate_candidate_credentials (agent, candidate);
   priv_assign_foundation (agent, candidate);
 
@@ -640,6 +641,8 @@ discovery_add_server_reflexive_candidate (
         agent->reliable, nat_assisted);
   }
 
+  candidate->priority = ensure_unique_priority (component,
+      candidate->priority);
   priv_generate_candidate_credentials (agent, candidate);
   priv_assign_foundation (agent, candidate);
 
@@ -756,6 +759,8 @@ discovery_add_relay_candidate (
         agent->reliable, FALSE);
   }
 
+  candidate->priority = ensure_unique_priority (component,
+      candidate->priority);
   priv_generate_candidate_credentials (agent, candidate);
 
   /* Google uses the turn username as the candidate username */
@@ -836,6 +841,8 @@ discovery_add_peer_reflexive_candidate (
         agent->reliable, FALSE);
   }
 
+  candidate->priority = ensure_unique_priority (component,
+      candidate->priority);
   priv_assign_foundation (agent, candidate);
 
   if ((agent->compatibility == NICE_COMPATIBILITY_MSN ||
@@ -1023,10 +1030,12 @@ static gboolean priv_discovery_tick_unlocked (gpointer pointer)
           (cand->type == NICE_CANDIDATE_TYPE_SERVER_REFLEXIVE ||
               cand->type == NICE_CANDIDATE_TYPE_RELAYED)) {
 
-	agent_signal_component_state_change (agent,
-					     cand->stream->id,
-					     cand->component->id,
-					     NICE_COMPONENT_STATE_GATHERING);
+        if (cand->component->state == NICE_COMPONENT_STATE_DISCONNECTED ||
+            cand->component->state == NICE_COMPONENT_STATE_FAILED)
+          agent_signal_component_state_change (agent,
+					       cand->stream->id,
+					       cand->component->id,
+					       NICE_COMPONENT_STATE_GATHERING);
 
         if (cand->type == NICE_CANDIDATE_TYPE_SERVER_REFLEXIVE) {
           buffer_len = stun_usage_bind_create (&cand->stun_agent,
@@ -1063,11 +1072,11 @@ static gboolean priv_discovery_tick_unlocked (gpointer pointer)
 
 	if (buffer_len > 0) {
           if (nice_socket_is_reliable (cand->nicesock)) {
-            stun_timer_start_reliable (&cand->timer,
-                STUN_TIMER_DEFAULT_RELIABLE_TIMEOUT);
+            stun_timer_start_reliable (&cand->timer, agent->stun_reliable_timeout);
           } else {
-            stun_timer_start (&cand->timer, 200,
-                STUN_TIMER_DEFAULT_MAX_RETRANSMISSIONS);
+            stun_timer_start (&cand->timer,
+                agent->stun_initial_timeout,
+                agent->stun_max_retransmissions);
           }
 
           /* send the conncheck */

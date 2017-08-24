@@ -17,8 +17,8 @@ SUBDIRS = \
 	agent \
 	nice \
 	gst \
-	docs \
 	tests \
+	docs \
 	examples
 
 DISTCHECK_CONFIGURE_FLAGS = --disable-assert -enable-gtk-doc --enable-introspection
@@ -47,6 +47,7 @@ dist_check_SCRIPTS = \
 # but not Linux, for no particular reason. They can’t be removed without
 # breaking ABI. FIXME: Remove them when we next break ABI.
 win32/vs9/libnice.def: nice/libnice.sym
+	$(MKDIR_P) $(dir $@)
 	$(AM_V_GEN)(echo "LIBRARY libnice"; \
 	            echo ""; \
 	            echo "EXPORTS"; \

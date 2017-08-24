@@ -82,6 +82,10 @@ static void
 nice_component_schedule_io_callback (NiceComponent *component);
 static void
 nice_component_deschedule_io_callback (NiceComponent *component);
+static void
+nice_component_detach_socket (NiceComponent *component, NiceSocket *nicesock);
+static void
+nice_component_clear_selected_pair (NiceComponent *component);
 
 
 void
@@ -99,6 +103,13 @@ socket_source_attach (SocketSource *socket_source, GMainContext *context)
   GSource *source;
 
   if (socket_source->socket->fileno == NULL)
+    return;
+
+  /* Do not create a GSource for UDP turn socket, because it
+   * would duplicate the packets already received on the base
+   * UDP socket.
+   */
+  if (socket_source->socket->type == NICE_SOCKET_TYPE_UDP_TURN)
     return;
 
   /* Create a source. */
@@ -150,6 +161,45 @@ nice_component_new (guint id, NiceAgent *agent, NiceStream *stream)
                        "agent", agent,
                        "stream", stream,
                        NULL);
+}
+
+void
+nice_component_remove_socket (NiceComponent *cmp, NiceSocket *nsocket)
+{
+  GSList *i;
+
+  for (i = cmp->local_candidates; i;) {
+    NiceCandidate *candidate = i->data;
+    GSList *next = i->next;
+
+    if (!nice_socket_is_based_on (candidate->sockptr, nsocket)) {
+      i = next;
+      continue;
+    }
+
+    if (candidate == cmp->selected_pair.local) {
+      nice_component_clear_selected_pair (cmp);
+      agent_signal_component_state_change (cmp->agent, cmp->stream->id,
+          cmp->id, NICE_COMPONENT_STATE_FAILED);
+    }
+
+    refresh_prune_candidate (cmp->agent, candidate);
+    if (candidate->sockptr != nsocket) {
+      discovery_prune_socket (cmp->agent, candidate->sockptr);
+      conn_check_prune_socket (cmp->agent, cmp->stream, cmp,
+          candidate->sockptr);
+      nice_component_detach_socket (cmp, candidate->sockptr);
+    }
+    agent_remove_local_candidate (cmp->agent, candidate);
+    nice_candidate_free (candidate);
+
+    cmp->local_candidates = g_slist_delete_link (cmp->local_candidates, i);
+    i = next;
+  }
+
+  discovery_prune_socket (cmp->agent, nsocket);
+  conn_check_prune_socket (cmp->agent, cmp->stream, cmp, nsocket);
+  nice_component_detach_socket (cmp, nsocket);
 }
 
 void
@@ -337,7 +387,7 @@ nice_component_restart (NiceComponent *cmp)
   for (i = cmp->remote_candidates; i; i = i->next) {
     NiceCandidate *candidate = i->data;
 
-    /* note: do not remove the local candidate that is
+    /* note: do not remove the remote candidate that is
      *       currently part of the 'selected pair', see ICE
      *       9.1.1.1. "ICE Restarts" (ID-19) */
     if (candidate == cmp->selected_pair.remote) {
@@ -391,7 +441,9 @@ nice_component_update_selected_pair (NiceComponent *component, const CandidatePa
   component->selected_pair.local = pair->local;
   component->selected_pair.remote = pair->remote;
   component->selected_pair.priority = pair->priority;
+  component->selected_pair.prflx_priority = pair->prflx_priority;
 
+  nice_component_add_valid_candidate (component, pair->remote);
 }
 
 /*
@@ -439,7 +491,7 @@ nice_component_set_selected_remote_candidate (NiceComponent *component,
     NiceCandidate *tmp = item->data;
     guint64 tmp_prio = 0;
 
-    if (tmp->transport != candidate->transport ||
+    if (tmp->transport != conn_check_match_transport(candidate->transport) ||
 	tmp->addr.s.addr.sa_family != candidate->addr.s.addr.sa_family ||
         tmp->type != NICE_CANDIDATE_TYPE_HOST)
       continue;
@@ -470,6 +522,11 @@ nice_component_set_selected_remote_candidate (NiceComponent *component,
   component->selected_pair.local = local;
   component->selected_pair.remote = remote;
   component->selected_pair.priority = priority;
+
+  /* Get into fallback mode where packets from any source is accepted once
+   * this has been called. This is the expected behavior of pre-ICE SIP.
+   */
+  component->fallback_mode = TRUE;
 
   return local;
 }
@@ -541,7 +598,7 @@ nice_component_reattach_all_sockets (NiceComponent *component)
 
 /**
  * nice_component_detach_socket:
- * @component: a #Component
+ * @component: a #NiceComponent
  * @socket: the socket to detach the source for
  *
  * Detach the #GSource for the single specified @socket. It also closes it
@@ -549,7 +606,7 @@ nice_component_reattach_all_sockets (NiceComponent *component)
  *
  * If the @socket doesn’t exist in this @component, do nothing.
  */
-void
+static void
 nice_component_detach_socket (NiceComponent *component, NiceSocket *nicesock)
 {
   GSList *l;
@@ -907,7 +964,7 @@ nice_component_class_init (NiceComponentClass *klass)
    *
    * The unique numeric ID of the component.
    *
-   * Since: UNRELEASED
+   * Since: 0.1.14
    */
   g_object_class_install_property (object_class, PROP_ID,
       g_param_spec_uint (
@@ -922,7 +979,7 @@ nice_component_class_init (NiceComponentClass *klass)
    *
    * The #NiceAgent this component belongs to.
    *
-   * Since: UNRELEASED
+   * Since: 0.1.14
    */
   g_object_class_install_property (object_class, PROP_AGENT,
       g_param_spec_object (
@@ -937,7 +994,7 @@ nice_component_class_init (NiceComponentClass *klass)
    *
    * The #NiceStream this component belongs to.
    *
-   * Since: UNRELEASED
+   * Since: 0.1.14
    */
   g_object_class_install_property (object_class, PROP_STREAM,
       g_param_spec_object (
@@ -946,6 +1003,18 @@ nice_component_class_init (NiceComponentClass *klass)
          "The NiceStream this component belongs to.",
          NICE_TYPE_STREAM,
          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY));
+}
+
+static gboolean
+dummy_callback (gpointer data)
+{
+  return G_SOURCE_CONTINUE;
+}
+
+static void
+source_set_dummy_callback (GSource *source)
+{
+  g_source_set_callback (source, dummy_callback, NULL, NULL);
 }
 
 static void
@@ -970,7 +1039,7 @@ nice_component_init (NiceComponent *component)
   component->stop_cancellable = g_cancellable_new ();
   component->stop_cancellable_source =
       g_cancellable_source_new (component->stop_cancellable);
-  g_source_set_dummy_callback (component->stop_cancellable_source);
+  source_set_dummy_callback (component->stop_cancellable_source);
   g_source_attach (component->stop_cancellable_source, component->own_ctx);
   component->ctx = g_main_context_ref (component->own_ctx);
 
@@ -1063,6 +1132,9 @@ nice_component_finalize (GObject *obj)
   g_warn_if_fail (cmp->local_candidates == NULL);
   g_warn_if_fail (cmp->remote_candidates == NULL);
   g_warn_if_fail (cmp->incoming_checks == NULL);
+
+  g_list_free_full (cmp->valid_candidates,
+      (GDestroyNotify) nice_candidate_free);
 
   g_clear_object (&cmp->tcp);
   g_clear_object (&cmp->stop_cancellable);
@@ -1161,9 +1233,8 @@ component_source_prepare (GSource *source, gint *timeout_)
     SocketSource *parent_socket_source = parentl->data;
     SocketSource *child_socket_source;
 
-    if (parent_socket_source->socket->fileno == NULL) {
+    if (parent_socket_source->socket->fileno == NULL)
       continue;
-    }
 
     /* Iterating the list of socket sources every time isn't a big problem
      * because the number of pairs is limited ~100 normally, so there will
@@ -1183,7 +1254,7 @@ component_source_prepare (GSource *source, gint *timeout_)
     child_socket_source->source =
         g_socket_create_source (child_socket_source->socket->fileno, G_IO_IN,
             NULL);
-    g_source_set_dummy_callback (child_socket_source->source);
+    source_set_dummy_callback (child_socket_source->source);
     g_source_add_child_source (source, child_socket_source->source);
     g_source_unref (child_socket_source->source);
     component_source->socket_sources =
@@ -1282,7 +1353,7 @@ static GSourceFuncs component_source_funcs = {
 };
 
 /**
- * component_source_new:
+ * nice_component_source_new:
  * @agent: a #NiceAgent
  * @stream_id: The stream's id
  * @component_id: The component's number
@@ -1328,7 +1399,7 @@ nice_component_input_source_new (NiceAgent *agent, guint stream_id,
     GSource *cancellable_source;
 
     cancellable_source = g_cancellable_source_new (cancellable);
-    g_source_set_dummy_callback (cancellable_source);
+    source_set_dummy_callback (cancellable_source);
     g_source_add_child_source ((GSource *) component_source,
         cancellable_source);
     g_source_unref (cancellable_source);
@@ -1378,4 +1449,84 @@ turn_server_unref (TurnServer *turn)
     g_free (turn->password);
     g_slice_free (TurnServer, turn);
   }
+}
+
+void
+nice_component_add_valid_candidate (NiceComponent *component,
+    const NiceCandidate *candidate)
+{
+  guint count = 0;
+  GList *item, *last = NULL;
+
+  for (item = component->valid_candidates; item; item = item->next) {
+    NiceCandidate *cand = item->data;
+
+    last = item;
+    count++;
+    if (nice_candidate_equal_target (cand, candidate))
+      return;
+  }
+
+  /* New candidate */
+
+  if (nice_debug_is_enabled ()) {
+    char str[INET6_ADDRSTRLEN];
+    nice_address_to_string (&candidate->addr, str);
+    nice_debug ("Agent %p :  %d:%d Adding valid source"
+        " candidate: %s:%d trans: %d", component->agent,
+        candidate->stream_id, candidate->component_id, str,
+        nice_address_get_port (&candidate->addr), candidate->transport);
+  }
+
+  component->valid_candidates = g_list_prepend (
+      component->valid_candidates, nice_candidate_copy (candidate));
+
+  /* Delete the last one to make sure we don't have a list that is too long,
+   * the candidates are not freed on ICE restart as this would be more complex,
+   * we just keep the list not too long.
+   */
+  if (count > NICE_COMPONENT_MAX_VALID_CANDIDATES) {
+    NiceCandidate *cand = last->data;
+
+    component->valid_candidates = g_list_delete_link (
+        component->valid_candidates, last);
+    nice_candidate_free (cand);
+  }
+}
+
+gboolean
+nice_component_verify_remote_candidate (NiceComponent *component,
+    const NiceAddress *address, NiceSocket *nicesock)
+{
+  GList *item;
+
+  if (component->fallback_mode)
+    return TRUE;
+
+  for (item = component->valid_candidates; item; item = item->next) {
+    NiceCandidate *cand = item->data;
+
+    if (((nicesock->type == NICE_SOCKET_TYPE_TCP_BSD &&
+                (cand->transport == NICE_CANDIDATE_TRANSPORT_TCP_ACTIVE ||
+                    cand->transport == NICE_CANDIDATE_TRANSPORT_TCP_PASSIVE ||
+                    cand->transport == NICE_CANDIDATE_TRANSPORT_TCP_SO)) ||
+            cand->transport == NICE_CANDIDATE_TRANSPORT_UDP) &&
+        nice_address_equal (address, &cand->addr)) {
+      /* fast return if it's already the first */
+      if (item == component->valid_candidates)
+        return TRUE;
+
+      /* Put the current candidate at the top so that in the normal use-case,
+       * this function becomes O(1).
+       */
+      component->valid_candidates = g_list_remove_link (
+          component->valid_candidates, item);
+      component->valid_candidates = g_list_concat (item,
+          component->valid_candidates);
+
+      return TRUE;
+    }
+  }
+
+  return FALSE;
 }

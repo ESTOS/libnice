@@ -43,8 +43,8 @@ check_PROGRAMS = \
 	test-io-stream-cancelling \
 	test-io-stream-pollable \
 	test-send-recv \
+	test-socket-is-based-on \
 	test-priority \
-	test-mainloop \
 	test-fullmode \
 	test-restart \
 	test-fallback \
@@ -53,7 +53,10 @@ check_PROGRAMS = \
 	test-new-dribble \
 	test-tcp \
 	test-icetcp \
-	test-credentials
+	test-credentials \
+	test-turn \
+	test-drop-invalid \
+	test-nomination
 
 dist_check_SCRIPTS = \
 	check-test-fullmode-with-stun.sh \
@@ -103,6 +106,8 @@ test_io_stream_pollable_LDADD = $(COMMON_LDADD)
 test_send_recv_SOURCES = test-send-recv.c test-io-stream-common.c
 test_send_recv_LDADD = $(COMMON_LDADD)
 
+test_socket_is_based_on_LDADD = $(COMMON_LDADD)
+
 test_priority_LDADD = $(COMMON_LDADD)
 
 test_mainloop_LDADD = $(COMMON_LDADD)
@@ -122,6 +127,12 @@ test_tcp_LDADD = $(COMMON_LDADD)
 test_icetcp_LDADD = $(COMMON_LDADD)
 
 test_credentials_LDADD = $(COMMON_LDADD)
+
+test_turn_LDADD = $(COMMON_LDADD)
+
+test_drop_invalid_LDADD = $(COMMON_LDADD)
+
+test_nomination_LDADD = $(COMMON_LDADD)
 
 test_gstreamer_CFLAGS = $(AM_CFLAGS) $(GST_CHECK_CFLAGS)
 test_gstreamer_LDADD = -lnice -L$(top_builddir)/nice/.libs $(GLIB_LIBS) $(GUPNP_LIBS) $(GST_CHECK_LIBS) $(GST_LIBS)
