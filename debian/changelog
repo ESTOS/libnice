@@ -4,7 +4,7 @@ libnice (0.1.14-1) unstable; urgency=medium
   * Remove myself from Uploaders.
 
   [ Laurent Bigonville ]
-  * New upstream version 0.1.14
+  * New upstream version 0.1.14 (Closes: #825329)
   * debian/control: Bump Standards-Version to 4.1.0
   * debian/control: Adjust the build-dependencies
   * debian/libnice10.symbols: Add the newly exported symbols
