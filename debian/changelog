@@ -1,3 +1,11 @@
+libnice (0.1.15-1kurento1~1.gbpd9c97d) UNRELEASED; urgency=medium
+
+  ** SNAPSHOT build @d9c97d1e9fdc28b29a03102beb986114bb5e8a17 **
+
+  * Add debian/ file changes required for Kurento
+
+ -- Juan Navarro <juan.navarro@gmx.es>  Mon, 15 Oct 2018 18:12:05 +0200
+
 libnice (0.1.14-1) unstable; urgency=medium
 
   [ Jonny Lamb ]
