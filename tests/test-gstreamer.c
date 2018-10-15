@@ -1,7 +1,7 @@
 /*
  * This file is part of the Nice GLib ICE library.
  *
- * (C) 1015 Kurento.
+ * (C) 2015 Kurento.
  *  Contact: Jose Antonio Santos Cadenas
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -34,7 +34,7 @@
  */
 
 #include <gst/check/gstcheck.h>
-#include <nice/agent.h>
+#include "agent.h"
 
 #define RTP_HEADER_SIZE 12
 #define RTP_PAYLOAD_SIZE 1024

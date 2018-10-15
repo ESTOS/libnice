@@ -73,6 +73,7 @@
 #include "interfaces.h"
 
 #include "pseudotcp.h"
+#include "agent-enum-types.h"
 
 /* Maximum size of a UDP packet’s payload, as the packet’s length field is 16b
  * wide. */
@@ -113,6 +114,10 @@ enum
   PROP_BYTESTREAM_TCP,
   PROP_KEEPALIVE_CONNCHECK,
   PROP_FORCE_RELAY,
+  PROP_STUN_MAX_RETRANSMISSIONS,
+  PROP_STUN_INITIAL_TIMEOUT,
+  PROP_STUN_RELIABLE_TIMEOUT,
+  PROP_NOMINATION_MODE,
 };
 
 
@@ -400,6 +405,13 @@ nice_agent_class_init (NiceAgentClass *klass)
 	1, /* not a construct property, ignored */
         G_PARAM_READWRITE));
 
+  /**
+   * NiceAgent:controlling-mode:
+   *
+   * Whether the agent has the controlling role. This property should
+   * be modified before gathering candidates, any modification occuring
+   * later will be hold until ICE is restarted.
+   */
   g_object_class_install_property (gobject_class, PROP_CONTROLLING_MODE,
       g_param_spec_boolean (
         "controlling-mode",
@@ -435,6 +447,24 @@ nice_agent_class_init (NiceAgentClass *klass)
         0, 0xffffffff,
 	0, /* default set in init */
         G_PARAM_READWRITE));
+
+  /**
+   * NiceAgent:nomination-mode:
+   *
+   * The nomination mode used in the ICE specification for describing
+   * the selection of valid pairs to be used upstream.
+   * <para> See also: #NiceNominationMode </para>
+   *
+   * Since: 0.1.15
+   */
+  g_object_class_install_property (gobject_class, PROP_NOMINATION_MODE,
+      g_param_spec_enum (
+         "nomination-mode",
+         "ICE nomination mode",
+         "Nomination mode used in the ICE specification for describing "
+         "the selection of valid pairs to be used upstream",
+         NICE_TYPE_NOMINATION_MODE, NICE_NOMINATION_MODE_AGGRESSIVE,
+         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY));
 
   /**
    * NiceAgent:proxy-ip:
@@ -707,6 +737,76 @@ nice_agent_class_init (NiceAgentClass *klass)
         "Force all traffic to go through a relay for added privacy.",
 	FALSE,
         G_PARAM_READWRITE));
+
+   /**
+   * NiceAgent:stun-max-retransmissions
+   *
+   * The maximum number of retransmissions of the STUN binding requests
+   * used in the gathering stage, to find our local candidates, and used
+   * in the connection check stage, to test the validity of each
+   * constructed pair. This property is described as 'Rc' in the RFC
+   * 5389, with a default value of 7. The timeout of each STUN request
+   * is doubled for each retransmission, so the choice of this value has
+   * a direct impact on the time needed to move from the CONNECTED state
+   * to the READY state, and on the time needed to complete the GATHERING
+   * state.
+   *
+   * Since: 0.1.15
+   */
+
+   g_object_class_install_property (gobject_class, PROP_STUN_MAX_RETRANSMISSIONS,
+      g_param_spec_uint (
+        "stun-max-retransmissions",
+        "STUN Max Retransmissions",
+        "Maximum number of STUN binding requests retransmissions "
+        "described as 'Rc' in the STUN specification.",
+        1, 99,
+        STUN_TIMER_DEFAULT_MAX_RETRANSMISSIONS,
+        G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
+
+   /**
+   * NiceAgent:stun-initial-timeout
+   *
+   * The initial timeout (msecs) of the STUN binding requests
+   * used in the gathering stage, to find our local candidates.
+   * This property is described as 'RTO' in the RFC 5389 and RFC 5245.
+   * This timeout is doubled for each retransmission, until
+   * #NiceAgent:stun-max-retransmissions have been done,
+   * with an exception for the last restransmission, where the timeout is
+   * divided by two instead (RFC 5389 indicates that a customisable
+   * multiplier 'Rm' to 'RTO' should be used).
+   *
+   * Since: 0.1.15
+   */
+
+   g_object_class_install_property (gobject_class, PROP_STUN_INITIAL_TIMEOUT,
+      g_param_spec_uint (
+        "stun-initial-timeout",
+        "STUN Initial Timeout",
+        "STUN timeout in msecs of the initial binding requests used in the "
+        "gathering state, described as 'RTO' in the ICE specification.",
+        20, 9999,
+        STUN_TIMER_DEFAULT_TIMEOUT,
+        G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
+
+   /**
+   * NiceAgent:stun-reliable-timeout
+   *
+   * The initial timeout of the STUN binding requests used
+   * for a reliable timer.
+   *
+   * Since: 0.1.15
+   */
+
+   g_object_class_install_property (gobject_class, PROP_STUN_RELIABLE_TIMEOUT,
+      g_param_spec_uint (
+        "stun-reliable-timeout",
+        "STUN Reliable Timeout",
+        "STUN timeout in msecs of the initial binding requests used for "
+        "a reliable timer.",
+        20, 99999,
+        STUN_TIMER_DEFAULT_RELIABLE_TIMEOUT,
+        G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
 
   /* install signals */
 
@@ -1014,6 +1114,47 @@ static void priv_generate_tie_breaker (NiceAgent *agent)
 }
 
 static void
+priv_update_controlling_mode (NiceAgent *agent, gboolean value)
+{
+  gboolean update_controlling_mode;
+  GSList *i, *j;
+
+  agent->saved_controlling_mode = value;
+  /* It is safe to update the agent controlling mode when all
+   * components are still in state disconnected. When we leave
+   * this state, the role must stay under the control of the
+   * conncheck algorithm exclusively, until the conncheck is
+   * eventually restarted. See RFC5245, sect 5.2. Determining Role
+   */
+  if (agent->controlling_mode != agent->saved_controlling_mode) {
+    update_controlling_mode = TRUE;
+    for (i = agent->streams;
+         i && update_controlling_mode; i = i->next) {
+      NiceStream *stream = i->data;
+      for (j = stream->components;
+           j && update_controlling_mode; j = j->next) {
+        NiceComponent *component = j->data;
+        if (component->state > NICE_COMPONENT_STATE_DISCONNECTED)
+          update_controlling_mode = FALSE;
+      }
+    }
+    if (update_controlling_mode) {
+      agent->controlling_mode = agent->saved_controlling_mode;
+      nice_debug ("Agent %p : Property set, changing role to \"%s\".",
+        agent, agent->controlling_mode ? "controlling" : "controlled");
+    } else {
+      nice_debug ("Agent %p : Property set, role switch requested "
+        "but conncheck already started.", agent);
+      nice_debug ("Agent %p : Property set, staying with role \"%s\" "
+        "until restart.", agent,
+        agent->controlling_mode ? "controlling" : "controlled");
+    }
+  } else
+    nice_debug ("Agent %p : Property set, role is already \"%s\".", agent,
+      agent->controlling_mode ? "controlling" : "controlled");
+}
+
+static void
 nice_agent_init (NiceAgent *agent)
 {
   agent->next_candidate_id = 1;
@@ -1022,7 +1163,9 @@ nice_agent_init (NiceAgent *agent)
   /* set defaults; not construct params, so set here */
   agent->stun_server_port = DEFAULT_STUN_PORT;
   agent->controlling_mode = TRUE;
+  agent->saved_controlling_mode = TRUE;
   agent->max_conn_checks = NICE_AGENT_MAX_CONNECTIVITY_CHECKS_DEFAULT;
+  agent->nomination_mode = NICE_NOMINATION_MODE_AGGRESSIVE;
 
   agent->discovery_list = NULL;
   agent->discovery_unsched_items = 0;
@@ -1071,6 +1214,24 @@ nice_agent_new_reliable (GMainContext *ctx, NiceCompatibility compat)
 }
 
 
+NICEAPI_EXPORT NiceAgent *
+nice_agent_new_full (GMainContext *ctx,
+  NiceCompatibility compat,
+  NiceAgentOption flags)
+{
+  NiceAgent *agent = g_object_new (NICE_TYPE_AGENT,
+      "compatibility", compat,
+      "main-context", ctx,
+      "reliable", (flags & NICE_AGENT_OPTION_RELIABLE) ? TRUE : FALSE,
+      "nomination-mode", (flags & NICE_AGENT_OPTION_REGULAR_NOMINATION) ?
+      NICE_NOMINATION_MODE_REGULAR : NICE_NOMINATION_MODE_AGGRESSIVE,
+      "full-mode", (flags & NICE_AGENT_OPTION_LITE_MODE) ? FALSE : TRUE,
+      NULL);
+
+  return agent;
+}
+
+
 static void
 nice_agent_get_property (
   GObject *object,
@@ -1101,7 +1262,7 @@ nice_agent_get_property (
       break;
 
     case PROP_CONTROLLING_MODE:
-      g_value_set_boolean (value, agent->controlling_mode);
+      g_value_set_boolean (value, agent->saved_controlling_mode);
       break;
 
     case PROP_FULL_MODE:
@@ -1115,6 +1276,10 @@ nice_agent_get_property (
     case PROP_MAX_CONNECTIVITY_CHECKS:
       g_value_set_uint (value, agent->max_conn_checks);
       /* XXX: should we prune the list of already existing checks? */
+      break;
+
+    case PROP_NOMINATION_MODE:
+      g_value_set_enum (value, agent->nomination_mode);
       break;
 
     case PROP_PROXY_IP:
@@ -1185,6 +1350,18 @@ nice_agent_get_property (
 
     case PROP_FORCE_RELAY:
       g_value_set_boolean (value, agent->force_relay);
+      break;
+
+    case PROP_STUN_MAX_RETRANSMISSIONS:
+      g_value_set_uint (value, agent->stun_max_retransmissions);
+      break;
+
+    case PROP_STUN_INITIAL_TIMEOUT:
+      g_value_set_uint (value, agent->stun_initial_timeout);
+      break;
+
+    case PROP_STUN_RELIABLE_TIMEOUT:
+      g_value_set_uint (value, agent->stun_reliable_timeout);
       break;
 
     default:
@@ -1294,7 +1471,7 @@ nice_agent_set_property (
       break;
 
     case PROP_CONTROLLING_MODE:
-      agent->controlling_mode = g_value_get_boolean (value);
+      priv_update_controlling_mode (agent, g_value_get_boolean (value));
       break;
 
     case PROP_FULL_MODE:
@@ -1307,6 +1484,10 @@ nice_agent_set_property (
 
     case PROP_MAX_CONNECTIVITY_CHECKS:
       agent->max_conn_checks = g_value_get_uint (value);
+      break;
+
+    case PROP_NOMINATION_MODE:
+      agent->nomination_mode = g_value_get_enum (value);
       break;
 
     case PROP_PROXY_IP:
@@ -1372,6 +1553,18 @@ nice_agent_set_property (
 
     case PROP_FORCE_RELAY:
       agent->force_relay = g_value_get_boolean (value);
+      break;
+
+    case PROP_STUN_MAX_RETRANSMISSIONS:
+      agent->stun_max_retransmissions = g_value_get_uint (value);
+      break;
+
+    case PROP_STUN_INITIAL_TIMEOUT:
+      agent->stun_initial_timeout = g_value_get_uint (value);
+      break;
+
+    case PROP_STUN_RELIABLE_TIMEOUT:
+      agent->stun_reliable_timeout = g_value_get_uint (value);
       break;
 
     default:
@@ -1552,7 +1745,6 @@ pseudo_tcp_socket_recv_messages (PseudoTcpSocket *self,
 
         if (len == 0) {
           /* Reached EOS. */
-          len = 0;
           goto done;
         } else if (len < 0 &&
             pseudo_tcp_socket_get_error (self) == EWOULDBLOCK) {
@@ -1890,6 +2082,17 @@ void agent_gathering_done (NiceAgent *agent)
 
   for (i = agent->streams; i; i = i->next) {
     NiceStream *stream = i->data;
+
+    /* We ignore streams not in gathering state, typically already in
+     * ready state. Such streams may have couples (local,remote)
+     * candidates that have not resulted in the creation a new pair
+     * during a previous conncheck session, and we don't want these new
+     * pairs to be added now, because it would generate unneeded
+     * transition changes for a stream unconcerned by this gathering.
+     */
+    if (!stream->gathering)
+      continue;
+
     for (j = stream->components; j; j = j->next) {
       NiceComponent *component = j->data;
 
@@ -2344,9 +2547,8 @@ priv_add_new_candidate_discovery_turn (NiceAgent *agent,
     if (nicesock == NULL)
       return;
 
-    if (agent->reliable)
-      nice_socket_set_writable_callback (nicesock, _tcp_sock_is_writable,
-          component);
+    nice_socket_set_writable_callback (nicesock, _tcp_sock_is_writable, component);
+
     if (turn->type ==  NICE_RELAY_TYPE_TURN_TLS &&
         agent->compatibility == NICE_COMPATIBILITY_GOOGLE) {
       nicesock = nice_pseudossl_socket_new (nicesock,
@@ -2731,8 +2933,7 @@ nice_agent_gather_candidates (
       }
     }
 
-    g_list_foreach (addresses, (GFunc) g_free, NULL);
-    g_list_free (addresses);
+    g_list_free_full (addresses, (GDestroyNotify) g_free);
   } else {
     for (i = agent->local_addresses; i; i = i->next) {
       NiceAddress *addr = i->data;
@@ -2830,10 +3031,8 @@ nice_agent_gather_candidates (
         found_local_address = TRUE;
         nice_address_set_port (addr, 0);
 
-
-        if (agent->reliable)
-          nice_socket_set_writable_callback (host_candidate->sockptr,
-              _tcp_sock_is_writable, component);
+        nice_socket_set_writable_callback (host_candidate->sockptr,
+            _tcp_sock_is_writable, component);
 
 #ifdef HAVE_GUPNP
       if (agent->upnp_enabled && agent->upnp &&
@@ -2859,11 +3058,13 @@ nice_agent_gather_candidates (
           if (nice_address_set_from_string (&stun_server, agent->stun_server_ip)) {
             nice_address_set_port (&stun_server, agent->stun_server_port);
 
-            priv_add_new_candidate_discovery_stun (agent,
-                host_candidate->sockptr,
-                stun_server,
-                stream,
-                cid);
+            if (nice_address_ip_version (&host_candidate->addr) ==
+                nice_address_ip_version (&stun_server))
+              priv_add_new_candidate_discovery_stun (agent,
+                  host_candidate->sockptr,
+                  stun_server,
+                  stream,
+                  cid);
           }
         }
 
@@ -3097,6 +3298,28 @@ nice_agent_add_local_address (NiceAgent *agent, NiceAddress *addr)
   return TRUE;
 }
 
+/* Recompute foundations of all candidate pairs from a given stream
+ * having a specific remote candidate
+ */
+static void priv_update_pair_foundations (NiceAgent *agent,
+    guint stream_id, NiceCandidate *remote)
+{
+  NiceStream *stream = agent_find_stream (agent, stream_id);
+  if (stream) {
+    GSList *i;
+    for (i = stream->conncheck_list; i; i = i->next) {
+      CandidateCheckPair *pair = i->data;
+      if (pair->remote == remote) {
+        g_snprintf (pair->foundation,
+            NICE_CANDIDATE_PAIR_MAX_FOUNDATION, "%s:%s",
+            pair->local->foundation, pair->remote->foundation);
+        nice_debug ("Agent %p : Updating pair %p foundation to '%s'",
+            agent, pair, pair->foundation);
+      }
+    }
+  }
+}
+
 static gboolean priv_add_remote_candidate (
   NiceAgent *agent,
   guint stream_id,
@@ -3113,6 +3336,13 @@ static gboolean priv_add_remote_candidate (
   NiceComponent *component;
   NiceCandidate *candidate;
 
+  if (transport == NICE_CANDIDATE_TRANSPORT_UDP &&
+      !agent->use_ice_udp)
+    return FALSE;
+  if (transport != NICE_CANDIDATE_TRANSPORT_UDP &&
+      !agent->use_ice_tcp)
+    return FALSE;
+
   if (!agent_find_component (agent, stream_id, component_id, NULL, &component))
     return FALSE;
 
@@ -3121,8 +3351,7 @@ static gboolean priv_add_remote_candidate (
 
   /* If it was a discovered remote peer reflexive candidate, then it should
    * be updated according to RFC 5245 section 7.2.1.3 */
-  if (candidate && candidate->type == NICE_CANDIDATE_TYPE_PEER_REFLEXIVE &&
-      candidate->priority == priority) {
+  if (candidate && candidate->type == NICE_CANDIDATE_TYPE_PEER_REFLEXIVE) {
     nice_debug ("Agent %p : Updating existing peer-rfx remote candidate to %s",
         agent, _cand_type_to_sdp (type));
     candidate->type = type;
@@ -3155,16 +3384,30 @@ static gboolean priv_add_remote_candidate (
      * this is essential to overcome a race condition where we might receive
      * a valid binding request from a valid candidate that wasn't yet added to
      * our list of candidates.. this 'update' will make the peer-rflx a
-     * server-rflx/host candidate again and restore that user/pass it needed
-     * to have in the first place */
+     * server-rflx/host candidate again */
     if (username) {
-      g_free (candidate->username);
-      candidate->username = g_strdup (username);
+      if (candidate->username == NULL)
+        candidate->username = g_strdup (username);
+      else if (g_strcmp0 (username, candidate->username))
+        nice_debug ("Agent %p : Candidate username '%s' is not allowed "
+            "to change to '%s' now (ICE restart only).", agent,
+            candidate->username, username);
     }
     if (password) {
-      g_free (candidate->password);
-      candidate->password = g_strdup (password);
+      if (candidate->password == NULL)
+        candidate->password = g_strdup (password);
+      else if (g_strcmp0 (password, candidate->password))
+        nice_debug ("Agent %p : candidate password '%s' is not allowed "
+            "to change to '%s' now (ICE restart only).", agent,
+            candidate->password, password);
     }
+
+    /* since the type of the existing candidate may have changed,
+     * the pairs priority and foundation related to this candidate need
+     * to be recomputed.
+     */
+    recalculate_pair_priorities (agent);
+    priv_update_pair_foundations (agent, stream_id, candidate);
   }
   else {
     /* case 2: add a new candidate */
@@ -3195,6 +3438,19 @@ static gboolean priv_add_remote_candidate (
           username, password, priority);
     }
 
+    if (NICE_AGENT_IS_COMPATIBLE_WITH_RFC5245_OR_OC2007R2 (agent)) {
+      /* note:  If there are TCP candidates for a media stream,
+       * a controlling agent MUST use the regular selection algorithm,
+       * RFC 6544, sect 8, "Concluding ICE Processing"
+       */
+      if (agent->nomination_mode == NICE_NOMINATION_MODE_AGGRESSIVE &&
+          transport != NICE_CANDIDATE_TRANSPORT_UDP) {
+        nice_debug ("Agent %p : we have TCP candidates, switching back "
+          "to regular nomination mode", agent);
+        agent->nomination_mode = NICE_NOMINATION_MODE_REGULAR;
+      }
+    }
+
     if (base_addr)
       candidate->base_addr = *base_addr;
 
@@ -3206,12 +3462,14 @@ static gboolean priv_add_remote_candidate (
     if (foundation)
       g_strlcpy (candidate->foundation, foundation,
           NICE_CANDIDATE_MAX_FOUNDATION);
-  }
 
-  if (conn_check_add_for_candidate (agent, stream_id, component, candidate) < 0) {
-    goto errors;
+    /* We only create a pair when a candidate is new, and not when
+     * updating an existing one.
+     */
+    if (conn_check_add_for_candidate (agent, stream_id,
+        component, candidate) < 0)
+      goto errors;
   }
-
   return TRUE;
 
 errors:
@@ -3239,6 +3497,8 @@ nice_agent_set_remote_credentials (
 
     g_strlcpy (stream->remote_ufrag, ufrag, NICE_STREAM_MAX_UFRAG);
     g_strlcpy (stream->remote_password, pwd, NICE_STREAM_MAX_PWD);
+
+    conn_check_remote_credentials_set(agent, stream);
 
     ret = TRUE;
     goto done;
@@ -3342,8 +3602,6 @@ _set_remote_candidates_locked (NiceAgent *agent, NiceStream *stream,
     }
   }
 
-  conn_check_remote_candidates_set(agent, stream, component);
-
   if (added > 0) {
     conn_check_schedule_next (agent);
   }
@@ -3423,7 +3681,8 @@ agent_recv_message_unlocked (
 {
   NiceAddress from;
   GList *item;
-  gint retval;
+  RecvStatus retval;
+  gint sockret;
   gboolean is_turn = FALSE;
 
   /* We need an address for packet parsing, below. */
@@ -3484,8 +3743,8 @@ agent_recv_message_unlocked (
         local_bufs[i + 1].buffer = message->buffers[i].buffer;
         local_bufs[i + 1].size = message->buffers[i].size;
       }
-      retval = nice_socket_recv_messages (nicesock, &local_message, 1);
-      if (retval == 1) {
+      sockret = nice_socket_recv_messages (nicesock, &local_message, 1);
+      if (sockret == 1) {
         message->length = ntohs (rfc4571_frame);
       }
     } else {
@@ -3500,7 +3759,7 @@ agent_recv_message_unlocked (
           _priv_set_socket_tos (agent, new_socket, stream->tos);
           nice_component_attach_socket (component, new_socket);
         }
-        retval = 0;
+        sockret = 0;
       } else {
         /* In the case of a real ICE-TCP connection, we can use the socket as a
          * bytestream and do the read here with caching of data being read
@@ -3509,9 +3768,9 @@ agent_recv_message_unlocked (
 
         /* TODO: Support bytestream reads */
         message->length = 0;
-        retval = 0;
+        sockret = 0;
         if (available <= 0) {
-          retval = available;
+          sockret = available;
 
           /* If we don't call check_connect_result on an outbound connection,
            * then is_connected will always return FALSE. That's why we check
@@ -3524,7 +3783,7 @@ agent_recv_message_unlocked (
              * not connected, it means that it failed to connect, so we must
              * return an error to make the socket fail/closed
              */
-            retval = -1;
+            sockret = -1;
           } else {
             gint flags = G_SOCKET_MSG_PEEK;
 
@@ -3537,7 +3796,7 @@ agent_recv_message_unlocked (
              */
             if (g_socket_receive_message (nicesock->fileno, NULL,
                     NULL, 0, NULL, NULL, &flags, NULL, NULL) == 0)
-              retval = -1;
+              sockret = -1;
           }
         } else if (agent->rfc4571_expecting_length == 0) {
           if ((gsize) available >= sizeof(guint16)) {
@@ -3545,8 +3804,8 @@ agent_recv_message_unlocked (
             GInputVector local_buf = { &rfc4571_frame, sizeof(guint16)};
             NiceInputMessage local_message = { &local_buf, 1, message->from, 0};
 
-            retval = nice_socket_recv_messages (nicesock, &local_message, 1);
-            if (retval == 1) {
+            sockret = nice_socket_recv_messages (nicesock, &local_message, 1);
+            if (sockret == 1) {
               agent->rfc4571_expecting_length = ntohs (rfc4571_frame);
               available = g_socket_get_available_bytes (nicesock->fileno);
             }
@@ -3590,8 +3849,8 @@ agent_recv_message_unlocked (
               off += local_bufs[i].size;
             }
           }
-          retval = nice_socket_recv_messages (nicesock, &local_message, 1);
-          if (retval == 1) {
+          sockret = nice_socket_recv_messages (nicesock, &local_message, 1);
+          if (sockret == 1) {
             message->length = local_message.length;
             agent->rfc4571_expecting_length -= local_message.length;
           }
@@ -3599,23 +3858,26 @@ agent_recv_message_unlocked (
       }
     }
   } else {
-    retval = nice_socket_recv_messages (nicesock, message, 1);
+    sockret = nice_socket_recv_messages (nicesock, message, 1);
   }
 
-  if (retval == 0) {
+  if (sockret == 0) {
     retval = RECV_WOULD_BLOCK;  /* EWOULDBLOCK */
     nice_debug_verbose ("%s: Agent %p: no message available on read attempt",
         G_STRFUNC, agent);
     goto done;
-  } else if (retval < 0) {
+  } else if (sockret < 0) {
     nice_debug ("Agent %p: %s returned %d, errno (%d) : %s",
-        agent, G_STRFUNC, retval, errno, g_strerror (errno));
+        agent, G_STRFUNC, sockret, errno, g_strerror (errno));
 
     retval = RECV_ERROR;
     goto done;
+  } else {
+    retval = sockret;
   }
 
-  if (retval == RECV_OOB || message->length == 0) {
+  g_assert (retval != RECV_OOB);
+  if (message->length == 0) {
     retval = RECV_OOB;
     nice_debug_verbose ("%s: Agent %p: message handled out-of-band", G_STRFUNC,
         agent);
@@ -3679,8 +3941,6 @@ agent_recv_message_unlocked (
   if (retval == RECV_OOB)
     goto done;
 
-  agent->media_after_tick = TRUE;
-
   /* If the message’s stated length is equal to its actual length, it’s probably
    * a STUN message; otherwise it’s probably data. */
   if (stun_message_validate_buffer_length_fast (
@@ -3712,6 +3972,7 @@ agent_recv_message_unlocked (
         nice_debug ("%s: Valid STUN packet received.", G_STRFUNC);
         retval = RECV_OOB;
         g_free (big_buf);
+        agent->media_after_tick = TRUE;
         goto done;
       }
     }
@@ -3721,6 +3982,23 @@ agent_recv_message_unlocked (
 
     g_free (big_buf);
   }
+
+  if (!nice_component_verify_remote_candidate (component,
+      message->from, nicesock)) {
+    if (nice_debug_is_verbose ()) {
+      gchar str[INET6_ADDRSTRLEN];
+
+      nice_address_to_string (message->from, str);
+      nice_debug_verbose ("Agent %p : %d:%d DROPPING packet from unknown source"
+          " %s:%d sock-type: %d", agent, stream->id, component->id, str,
+          nice_address_get_port (message->from), nicesock->type);
+    }
+
+    retval = RECV_OOB;
+    goto done;
+  }
+
+  agent->media_after_tick = TRUE;
 
   /* Unhandled STUN; try handling TCP data, then pass to the client. */
   if (message->length > 0  && agent->reliable) {
@@ -4085,7 +4363,10 @@ static gboolean
 nice_agent_recv_cancelled_cb (GCancellable *cancellable, gpointer user_data)
 {
   GError **error = user_data;
-  return !g_cancellable_set_error_if_cancelled (cancellable, error);
+
+  if (error && !*error)
+    g_cancellable_set_error_if_cancelled (cancellable, error);
+  return G_SOURCE_REMOVE;
 }
 
 static gint
@@ -4167,7 +4448,8 @@ nice_agent_recv_messages_blocking_or_nonblocking (NiceAgent *agent,
   if (cancellable != NULL) {
     cancellable_source = g_cancellable_source_new (cancellable);
     g_source_set_callback (cancellable_source,
-        (GSourceFunc) nice_agent_recv_cancelled_cb, &child_error, NULL);
+        (GSourceFunc) G_CALLBACK (nice_agent_recv_cancelled_cb), &child_error,
+        NULL);
     g_source_attach (cancellable_source, context);
   }
 
@@ -4245,7 +4527,6 @@ nice_agent_recv_messages_blocking_or_nonblocking (NiceAgent *agent,
           "Component removed during call.");
 
       component = NULL;
-      error_reported = TRUE;
 
       goto recv_error;
     }
@@ -4733,6 +5014,11 @@ nice_agent_restart (
 
   /* step: regenerate tie-breaker value */
   priv_generate_tie_breaker (agent);
+
+  /* step: reset controlling mode from the property value */
+  agent->controlling_mode = agent->saved_controlling_mode;
+  nice_debug ("Agent %p : ICE restart, reset role to \"%s\".",
+      agent, agent->controlling_mode ? "controlling" : "controlled");
 
   for (i = agent->streams; i; i = i->next) {
     NiceStream *stream = i->data;
@@ -5665,7 +5951,7 @@ _generate_candidate_sdp (NiceAgent *agent,
   g_string_append_printf (sdp, " typ %s", _cand_type_to_sdp (candidate->type));
   if (nice_address_is_valid (&candidate->base_addr) &&
       !nice_address_equal (&candidate->addr, &candidate->base_addr)) {
-    port = nice_address_get_port (&candidate->addr);
+    port = nice_address_get_port (&candidate->base_addr);
     nice_address_to_string (&candidate->base_addr, ip4);
     g_string_append_printf (sdp, " raddr %s rport %d", ip4,
         port == 0 ? 9 : port);

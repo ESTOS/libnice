@@ -24,7 +24,7 @@ AM_CPPFLAGS = -DG_LOG_DOMAIN=\"libnice-tests\"
 
 AM_TESTS_ENVIRONMENT = \
 	G_MESSAGES_DEBUG=all \
-	NICE_DEBUG=all;
+	NICE_DEBUG=all
 
 COMMON_LDADD = $(top_builddir)/agent/libagent.la $(top_builddir)/socket/libsocket.la $(GLIB_LIBS) $(GUPNP_LIBS)
 
@@ -45,8 +45,8 @@ check_PROGRAMS = \
 	test-send-recv \
 	test-socket-is-based-on \
 	test-priority \
-	test-mainloop \
 	test-fullmode \
+        test-different-number-streams \
 	test-restart \
 	test-fallback \
 	test-thread \
@@ -55,7 +55,9 @@ check_PROGRAMS = \
 	test-tcp \
 	test-icetcp \
 	test-credentials \
-	test-turn
+	test-turn \
+	test-drop-invalid \
+	test-nomination
 
 dist_check_SCRIPTS = \
 	check-test-fullmode-with-stun.sh \
@@ -113,6 +115,8 @@ test_mainloop_LDADD = $(COMMON_LDADD)
 
 test_fullmode_LDADD = $(COMMON_LDADD)
 
+test_different_number_streams_LDADD = $(COMMON_LDADD)
+
 test_restart_LDADD = $(COMMON_LDADD)
 
 test_fallback_LDADD = $(COMMON_LDADD)
@@ -128,6 +132,10 @@ test_icetcp_LDADD = $(COMMON_LDADD)
 test_credentials_LDADD = $(COMMON_LDADD)
 
 test_turn_LDADD = $(COMMON_LDADD)
+
+test_drop_invalid_LDADD = $(COMMON_LDADD)
+
+test_nomination_LDADD = $(COMMON_LDADD)
 
 test_gstreamer_CFLAGS = $(AM_CFLAGS) $(GST_CHECK_CFLAGS)
 test_gstreamer_LDADD = -lnice -L$(top_builddir)/nice/.libs $(GLIB_LIBS) $(GUPNP_LIBS) $(GST_CHECK_LIBS) $(GST_LIBS)

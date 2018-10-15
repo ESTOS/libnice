@@ -338,7 +338,7 @@ static guint priv_highest_remote_foundation (NiceComponent *component)
   for (highest = 1;; highest++) {
     gboolean taken = FALSE;
 
-    g_snprintf (foundation, NICE_CANDIDATE_MAX_FOUNDATION, "remote-%u",
+    g_snprintf (foundation, NICE_CANDIDATE_MAX_FOUNDATION, "remote%u",
         highest);
     for (i = component->remote_candidates; i; i = i->next) {
       NiceCandidate *cand = i->data;
@@ -468,7 +468,7 @@ static void priv_assign_remote_foundation (NiceAgent *agent, NiceCandidate *cand
   if (component) {
     next_remote_id = priv_highest_remote_foundation (component);
     g_snprintf (candidate->foundation, NICE_CANDIDATE_MAX_FOUNDATION,
-        "remote-%u", next_remote_id);
+        "remote%u", next_remote_id);
   }
 }
 
@@ -688,7 +688,8 @@ discovery_discover_tcp_server_reflexive_candidates (
 
     caddr = c->addr;
     nice_address_set_port (&caddr, 0);
-    if (c->transport != NICE_CANDIDATE_TRANSPORT_UDP &&
+    if (agent->force_relay == FALSE &&
+        c->transport != NICE_CANDIDATE_TRANSPORT_UDP &&
         c->type == NICE_CANDIDATE_TYPE_HOST &&
         nice_address_equal (&base_addr, &caddr)) {
       nice_address_set_port (address, nice_address_get_port (&c->addr));
@@ -1072,11 +1073,11 @@ static gboolean priv_discovery_tick_unlocked (gpointer pointer)
 
 	if (buffer_len > 0) {
           if (nice_socket_is_reliable (cand->nicesock)) {
-            stun_timer_start_reliable (&cand->timer,
-                STUN_TIMER_DEFAULT_RELIABLE_TIMEOUT);
+            stun_timer_start_reliable (&cand->timer, agent->stun_reliable_timeout);
           } else {
-            stun_timer_start (&cand->timer, 200,
-                STUN_TIMER_DEFAULT_MAX_RETRANSMISSIONS);
+            stun_timer_start (&cand->timer,
+                agent->stun_initial_timeout,
+                agent->stun_max_retransmissions);
           }
 
           /* send the conncheck */

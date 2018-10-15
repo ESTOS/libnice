@@ -5,8 +5,8 @@ dnl Always compile with -Wall; if --enable-compile-warnings=error is passed,
 dnl also use -Werror. git and pre-releases default to -Werror
 
 dnl use a three digit version number for releases, and four for cvs/prerelease
-AC_INIT([libnice],[0.1.14])
-LIBNICE_RELEASE="yes"
+AC_INIT([libnice],[0.1.14.1])
+LIBNICE_RELEASE="no"
 
 AC_CANONICAL_TARGET
 
@@ -57,6 +57,7 @@ AC_PROG_CC
 AM_PROG_AR
 LT_PREREQ([2.2.6])
 LT_INIT([dlopen win32-dll disable-static])
+AC_PATH_PROG([GLIB_MKENUMS],[glib-mkenums])
 
 # Check Operating System
 AC_MSG_CHECKING([operating system])
@@ -135,6 +136,7 @@ AS_IF([test "x$enable_compile_warnings" != "xno" -a \
     NICE_ADD_FLAG([-Wcast-align])
     NICE_ADD_FLAG([-Wformat-nonliteral])
     NICE_ADD_FLAG([-Wformat-security])
+    NICE_ADD_FLAG([-Wno-cast-function-type])
 ])
 AS_IF([test "$enable_compile_warnings" = "yes" -o \
             "$enable_compile_warnings" = "maximum" -o \
@@ -153,7 +155,6 @@ AS_IF([test "$enable_compile_warnings" = "yes" -o \
 ])
 AS_IF([test "$enable_compile_warnings" = "maximum" -o \
             "$enable_compile_warnings" = "error"],[
-    NICE_ADD_FLAG([-Wswitch-enum])
     NICE_ADD_FLAG([-Wswitch-default])
     NICE_ADD_FLAG([-Waggregate-return])
 ])
@@ -353,6 +354,20 @@ AM_CONDITIONAL([ENABLE_GTK_DOC], false)
 
 # GObject introspection
 GOBJECT_INTROSPECTION_CHECK([1.30.0])
+
+dnl Ignore a specific network interface name prefix from the connection check
+AC_MSG_CHECKING([whether to ignore a specific network interface name prefix])
+AC_ARG_WITH([ignored-network-interface-prefix],
+  [AS_HELP_STRING([--with-ignored-network-interface-prefix=string],
+    [Ignore network interfaces whose name starts with "string" from the ICE connection
+     check algorithm. For example, interfaces "virbr" in the case of the virtual bridge
+     handled by libvirtd, do not help in finding connectivity.])],
+    [interface_prefix="$withval"])
+AS_IF([test -n "$interface_prefix"],
+  [AC_DEFINE_UNQUOTED([IGNORED_IFACE_PREFIX],["$interface_prefix"],
+    [Ignore this network interface prefix from the connection check])
+   AC_MSG_RESULT([yes, $interface_prefix])],
+  [AC_MSG_RESULT([no])])
 
 AC_CONFIG_MACRO_DIR(m4)
 

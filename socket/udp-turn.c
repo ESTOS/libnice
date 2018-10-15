@@ -174,8 +174,8 @@ priv_send_data_queue_destroy (gpointer user_data)
 
 NiceSocket *
 nice_udp_turn_socket_new (GMainContext *ctx, NiceAddress *addr,
-    NiceSocket *base_socket, NiceAddress *server_addr,
-    gchar *username, gchar *password,
+    NiceSocket *base_socket, const NiceAddress *server_addr,
+    const gchar *username, const gchar *password,
     NiceTurnSocketCompatibility compatibility)
 {
   UdpTurnPriv *priv;
@@ -274,9 +274,7 @@ socket_close (NiceSocket *sock)
   }
   g_list_free (priv->channels);
 
-  g_list_foreach (priv->pending_bindings, (GFunc) nice_address_free,
-      NULL);
-  g_list_free (priv->pending_bindings);
+  g_list_free_full (priv->pending_bindings, (GDestroyNotify) nice_address_free);
 
   if (priv->tick_source_channel_bind != NULL) {
     g_source_destroy (priv->tick_source_channel_bind);
@@ -305,8 +303,7 @@ socket_close (NiceSocket *sock)
   g_queue_free (priv->send_requests);
 
   priv_clear_permissions (priv);
-  g_list_foreach (priv->sent_permissions, (GFunc) nice_address_free, NULL);
-  g_list_free (priv->sent_permissions);
+  g_list_free_full (priv->sent_permissions, (GDestroyNotify) nice_address_free);
   g_hash_table_destroy (priv->send_data_queues);
 
   if (priv->permission_timeout_source) {
@@ -320,8 +317,7 @@ socket_close (NiceSocket *sock)
 
   g_free (priv->current_binding);
   g_free (priv->current_binding_msg);
-  g_list_foreach (priv->pending_permissions, (GFunc) g_free, NULL);
-  g_list_free(priv->pending_permissions);
+  g_list_free_full (priv->pending_permissions, g_free);
   g_free (priv->username);
   g_free (priv->password);
   g_free (priv->cached_realm);
@@ -406,9 +402,8 @@ socket_recv_messages (NiceSocket *sock,
 
     /* Split up the monolithic buffer again into the caller-provided buffers. */
     if (parsed_buffer_length > 0 && allocated_buffer) {
-      parsed_buffer_length =
-          memcpy_buffer_to_input_message (message, buffer,
-              parsed_buffer_length);
+      memcpy_buffer_to_input_message (message, buffer,
+          parsed_buffer_length);
     }
 
     if (allocated_buffer)
@@ -547,8 +542,7 @@ priv_remove_sent_permission_for_peer (UdpTurnPriv *priv, const NiceAddress *peer
 static void
 priv_clear_permissions (UdpTurnPriv *priv)
 {
-  g_list_foreach (priv->permissions, (GFunc) nice_address_free, NULL);
-  g_list_free (priv->permissions);
+  g_list_free_full (priv->permissions, (GDestroyNotify) nice_address_free);
   priv->permissions = NULL;
 }
 
@@ -1185,7 +1179,7 @@ nice_udp_turn_socket_parse_recv_message (NiceSocket *sock, NiceSocket **from_soc
 gsize
 nice_udp_turn_socket_parse_recv (NiceSocket *sock, NiceSocket **from_sock,
     NiceAddress *from, gsize len, guint8 *buf,
-    NiceAddress *recv_from, guint8 *_recv_buf, gsize recv_len)
+    const NiceAddress *recv_from, const guint8 *_recv_buf, gsize recv_len)
 {
 
   UdpTurnPriv *priv = (UdpTurnPriv *) sock->priv;
@@ -1195,8 +1189,8 @@ nice_udp_turn_socket_parse_recv (NiceSocket *sock, NiceSocket **from_sock,
   ChannelBinding *binding = NULL;
 
   union {
-    guint8 *u8;
-    guint16 *u16;
+    const guint8 *u8;
+    const guint16 *u16;
   } recv_buf;
 
   /* In the case of a reliable UDP-TURN-OVER-TCP (which means MS-TURN)
