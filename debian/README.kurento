@@ -1,0 +1,12 @@
+2018-10-15
+==========
+
+Kurento changes from upstream:
+
+- Use 'debhelper (>= 9)': Debian packager uses version 10, but that
+  is only available in 16.04 as backport. Default version for both 16.04
+  and 14.04 is 9.
+  Also changed in file 'debian/compat'.
+
+- dh-autoreconf: debhelper 10 already depends on dh-autoreconf, but version 9
+  doesn't.

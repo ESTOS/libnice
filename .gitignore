@@ -45,7 +45,7 @@ stamp-h1
 test-driver
 
 # top level stuff
-debian
+#debian
 
 # address/ stuff
 address/libaddress.la
