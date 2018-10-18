@@ -1,1 +1,4 @@
 0001-Kurento-Add-build-config-for-GStreamer-1.5.patch
+0002-angent.c-Do-not-break-the-program-if-transition-is-n.patch
+0003-agent.c-Add-connecting-gathering-possible-state.patch
+0004-conncheck.c-Fix-negotiation-problem.patch
