@@ -88,9 +88,10 @@ AH_VERBATIM([_FORTIFY_SOURCE],
 #endif])
 AC_DEFINE([NICEAPI_EXPORT], [ ], [Public library function implementation])
 AC_CHECK_HEADERS([arpa/inet.h net/in.h netdb.h])
-AC_CHECK_HEADERS([ifaddrs.h], \
-		      [AC_DEFINE(HAVE_GETIFADDRS, [1], \
-		       [Whether getifaddrs() is available on the system])])
+AC_CHECK_HEADERS([ifaddrs.h],
+		[AC_CHECK_FUNCS([getifaddrs],
+			[AC_DEFINE(HAVE_GETIFADDRS, [1],
+				[Whether getifaddrs() is available on the system])])])
 AC_CHECK_TYPES([size_t, ssize_t])
 
 # Also put matching version in LIBNICE_CFLAGS
@@ -185,15 +186,54 @@ AC_SUBST(LIBRT)
 
 # Dependencies
 
-GNUTLS_PACKAGES_PRIVATE="gnutls >= 2.12.0"
-PKG_CHECK_MODULES(GNUTLS, [$GNUTLS_PACKAGES_PRIVATE])
-
 NICE_PACKAGES_PUBLIC="glib-2.0 >= $GLIB_REQ gio-2.0 >= $GLIB_REQ gobject-2.0 >= $GLIB_REQ"
 NICE_PACKAGES_PRIVATE="gthread-2.0"
 
 PKG_CHECK_MODULES(GLIB, [$NICE_PACKAGES_PUBLIC $NICE_PACKAGES_PRIVATE])
 
-NICE_PACKAGES_PRIVATE="$NICE_PACKAGES_PRIVATE $GNUTLS_PACKAGES_PRIVATE"
+AC_ARG_WITH(crypto-library,
+	AS_HELP_STRING([--with-crypto-library=\{gnutls,openssl,auto\}],[select Crypto library (gnutls or openssl)]),
+	[with_crypto_library=${withval}],
+	[with_crypto_library=auto])
+
+
+AS_IF([test "$with_crypto_library" != "openssl"],
+	[
+	GNUTLS_PACKAGES_PRIVATE="gnutls >= 2.12.0"
+	PKG_CHECK_MODULES(GNUTLS, [$GNUTLS_PACKAGES_PRIVATE],
+		[
+		AC_DEFINE([HAVE_GNUTLS], [1], [Use GnuTLS])
+		GNUTLS_FOUND=yes
+		NICE_PACKAGES_PRIVATE="$NICE_PACKAGES_PRIVATE $GNUTLS_PACKAGES_PRIVATE"
+		],
+		[
+		AS_IF([test "$with_crypto_library" == "gnutls"],
+			[
+			AC_MSG_ERROR([Neither GnuTLS is not available])
+			]
+		)
+		]
+	)
+	]
+)
+
+AS_IF([test "x${GNUTLS_FOUND}" != "xyes"],
+        [
+	AX_CHECK_OPENSSL(
+		[
+		AC_DEFINE([HAVE_OPENSSL], [1], [Use OpenSSL])
+		NICE_PACKAGES_PRIVATE="$NICE_PACKAGES_PRIVATE libcrypto"
+		AC_MSG_NOTICE([OpenSSL selected])
+		],
+		[
+		AC_MSG_ERROR([Neither GnuTLS or OpenSSL is available])
+		]
+	)
+	],
+	[
+		AC_MSG_NOTICE([GnuTLS selected])
+	]
+)
 
 AC_SUBST([NICE_PACKAGES_PUBLIC])
 AC_SUBST([NICE_PACKAGES_PRIVATE])

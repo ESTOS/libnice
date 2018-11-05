@@ -111,7 +111,7 @@ void discovery_prune_stream (NiceAgent *agent, guint stream_id)
     CandidateDiscovery *cand = i->data;
     GSList *next = i->next;
 
-    if (cand->stream->id == stream_id) {
+    if (cand->stream_id == stream_id) {
       agent->discovery_list = g_slist_remove (agent->discovery_list, cand);
       discovery_free_item (cand);
     }
@@ -156,15 +156,16 @@ void discovery_prune_socket (NiceAgent *agent, NiceSocket *sock)
  * Frees the CandidateDiscovery structure pointed to
  * by 'user data'. Compatible with g_slist_free_full().
  */
-static void refresh_free_item (CandidateRefresh *cand)
+static void refresh_free_item (NiceAgent *agent, CandidateRefresh *cand)
 {
-  NiceAgent *agent = cand->agent;
   uint8_t *username;
   gsize username_len;
   uint8_t *password;
   gsize password_len;
   size_t buffer_len = 0;
   StunUsageTurnCompatibility turn_compat = agent_to_turn_compatibility (agent);
+
+  agent->refresh_list = g_slist_remove (agent->refresh_list, cand);
 
   if (cand->timer_source != NULL) {
     g_source_destroy (cand->timer_source);
@@ -227,8 +228,8 @@ static void refresh_free_item (CandidateRefresh *cand)
  */
 void refresh_free (NiceAgent *agent)
 {
-  g_slist_free_full (agent->refresh_list, (GDestroyNotify) refresh_free_item);
-  agent->refresh_list = NULL;
+  while (agent->refresh_list)
+    refresh_free_item (agent, agent->refresh_list->data);
 }
 
 /*
@@ -248,9 +249,8 @@ void refresh_prune_stream (NiceAgent *agent, guint stream_id)
     /* Don't free the candidate refresh to the currently selected local candidate
      * unless the whole pair is being destroyed.
      */
-    if (cand->stream->id == stream_id) {
-      agent->refresh_list = g_slist_delete_link (agent->refresh_list, i);
-      refresh_free_item (cand);
+    if (cand->stream_id == stream_id) {
+      refresh_free_item (agent, cand);
     }
 
     i = next;
@@ -267,8 +267,7 @@ void refresh_prune_candidate (NiceAgent *agent, NiceCandidate *candidate)
     CandidateRefresh *refresh = i->data;
 
     if (refresh->candidate == candidate) {
-      agent->refresh_list = g_slist_delete_link (agent->refresh_list, i);
-      refresh_free_item (refresh);
+      refresh_free_item (agent, refresh);
     }
 
     i = next;
@@ -284,19 +283,16 @@ void refresh_prune_socket (NiceAgent *agent, NiceSocket *sock)
     CandidateRefresh *refresh = i->data;
 
     if (refresh->nicesock == sock) {
-      agent->refresh_list = g_slist_delete_link (agent->refresh_list, i);
-      refresh_free_item (refresh);
+      refresh_free_item (agent, refresh);
     }
 
     i = next;
   }
 }
 
-void refresh_cancel (CandidateRefresh *refresh)
+void refresh_cancel (NiceAgent *agent, CandidateRefresh *refresh)
 {
-  refresh->agent->refresh_list = g_slist_remove (refresh->agent->refresh_list,
-      refresh);
-  refresh_free_item (refresh);
+  refresh_free_item (agent, refresh);
 }
 
 
@@ -549,7 +545,7 @@ HostCandidateResult discovery_add_local_host_candidate (
         agent->reliable, FALSE);
   }
 
-  candidate->priority = ensure_unique_priority (component,
+  candidate->priority = ensure_unique_priority (stream, component,
       candidate->priority);
   priv_generate_candidate_credentials (agent, candidate);
   priv_assign_foundation (agent, candidate);
@@ -641,7 +637,7 @@ discovery_add_server_reflexive_candidate (
         agent->reliable, nat_assisted);
   }
 
-  candidate->priority = ensure_unique_priority (component,
+  candidate->priority = ensure_unique_priority (stream, component,
       candidate->priority);
   priv_generate_candidate_credentials (agent, candidate);
   priv_assign_foundation (agent, candidate);
@@ -760,7 +756,7 @@ discovery_add_relay_candidate (
         agent->reliable, FALSE);
   }
 
-  candidate->priority = ensure_unique_priority (component,
+  candidate->priority = ensure_unique_priority (stream, component,
       candidate->priority);
   priv_generate_candidate_credentials (agent, candidate);
 
@@ -842,7 +838,7 @@ discovery_add_peer_reflexive_candidate (
         agent->reliable, FALSE);
   }
 
-  candidate->priority = ensure_unique_priority (component,
+  candidate->priority = ensure_unique_priority (stream, component,
       candidate->priority);
   priv_assign_foundation (agent, candidate);
 
@@ -998,10 +994,9 @@ NiceCandidate *discovery_learn_remote_peer_reflexive_candidate (
  *
  * @return will return FALSE when no more pending timers.
  */
-static gboolean priv_discovery_tick_unlocked (gpointer pointer)
+static gboolean priv_discovery_tick_unlocked (NiceAgent *agent)
 {
   CandidateDiscovery *cand;
-  NiceAgent *agent = pointer;
   GSList *i;
   int not_done = 0; /* note: track whether to continue timer */
   size_t buffer_len = 0;
@@ -1030,12 +1025,15 @@ static gboolean priv_discovery_tick_unlocked (gpointer pointer)
       if (nice_address_is_valid (&cand->server) &&
           (cand->type == NICE_CANDIDATE_TYPE_SERVER_REFLEXIVE ||
               cand->type == NICE_CANDIDATE_TYPE_RELAYED)) {
+        NiceComponent *component;
 
-        if (cand->component->state == NICE_COMPONENT_STATE_DISCONNECTED ||
-            cand->component->state == NICE_COMPONENT_STATE_FAILED)
+        if (agent_find_component (agent, cand->stream_id,
+                cand->component_id, NULL, &component) &&
+            (component->state == NICE_COMPONENT_STATE_DISCONNECTED ||
+                component->state == NICE_COMPONENT_STATE_FAILED))
           agent_signal_component_state_change (agent,
-					       cand->stream->id,
-					       cand->component->id,
+					       cand->stream_id,
+					       cand->component_id,
 					       NICE_COMPONENT_STATE_GATHERING);
 
         if (cand->type == NICE_CANDIDATE_TYPE_SERVER_REFLEXIVE) {
@@ -1183,20 +1181,12 @@ static gboolean priv_discovery_tick_unlocked (gpointer pointer)
   return TRUE;
 }
 
-static gboolean priv_discovery_tick (gpointer pointer)
+static gboolean priv_discovery_tick_agent_locked (NiceAgent *agent,
+    gpointer pointer)
 {
-  NiceAgent *agent = pointer;
   gboolean ret;
 
-  agent_lock();
-  if (g_source_is_destroyed (g_main_current_source ())) {
-    nice_debug ("Source was destroyed. "
-        "Avoided race condition in priv_discovery_tick");
-    agent_unlock ();
-    return FALSE;
-  }
-
-  ret = priv_discovery_tick_unlocked (pointer);
+  ret = priv_discovery_tick_unlocked (agent);
   if (ret == FALSE) {
     if (agent->discovery_timer_source != NULL) {
       g_source_destroy (agent->discovery_timer_source);
@@ -1204,7 +1194,6 @@ static gboolean priv_discovery_tick (gpointer pointer)
       agent->discovery_timer_source = NULL;
     }
   }
-  agent_unlock_and_emit (agent);
 
   return ret;
 }
@@ -1227,7 +1216,7 @@ void discovery_schedule (NiceAgent *agent)
       if (res == TRUE) {
         agent_timeout_add_with_context (agent, &agent->discovery_timer_source,
             "Candidate discovery tick", agent->timer_ta,
-            priv_discovery_tick, agent);
+            priv_discovery_tick_agent_locked, NULL);
       }
     }
   }
