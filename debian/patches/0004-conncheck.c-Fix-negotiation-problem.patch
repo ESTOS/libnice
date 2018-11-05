@@ -15,15 +15,15 @@ Change-Id: I01ccc5b8968df343992a6e2f21a4910bbabf6366
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/agent/conncheck.c b/agent/conncheck.c
-index 64a3cb8..4cf58a8 100644
+index 0821bdc..2993a97 100644
 --- a/agent/conncheck.c
 +++ b/agent/conncheck.c
-@@ -2998,7 +2998,7 @@ static CandidateCheckPair *priv_add_peer_reflexive_pair (NiceAgent *agent, guint
+@@ -2935,7 +2935,7 @@ static CandidateCheckPair *priv_add_peer_reflexive_pair (NiceAgent *agent, guint
    else
      pair->priority = nice_candidate_pair_priority (pair->remote->priority,
          pair->local->priority);
 -  pair->nominated = FALSE;
 +  pair->nominated = parent_pair->nominated;
-   pair->prflx_priority = ensure_unique_priority (component,
+   pair->prflx_priority = ensure_unique_priority (stream, component,
        peer_reflexive_candidate_priority (agent, local_cand));
    nice_debug ("Agent %p : added a new peer-discovered pair with "

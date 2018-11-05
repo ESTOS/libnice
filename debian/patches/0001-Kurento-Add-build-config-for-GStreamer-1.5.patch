@@ -8,10 +8,10 @@ Subject: Kurento: Add build config for GStreamer 1.5
  2 files changed, 44 insertions(+)
 
 diff --git a/configure.ac b/configure.ac
-index 36bd622..4193c13 100644
+index ddcc4e4..5c62f01 100644
 --- a/configure.ac
 +++ b/configure.ac
-@@ -204,6 +204,11 @@ AC_ARG_WITH(gstreamer,
+@@ -244,6 +244,11 @@ AC_ARG_WITH(gstreamer,
  	[with_gstreamer=${withval}],
  	[with_gstreamer=auto])
  
@@ -23,7 +23,7 @@ index 36bd622..4193c13 100644
  AC_ARG_WITH(gstreamer-0.10, 
  	AS_HELP_STRING([--with-gstreamer-0.10],[build GStreamer 0.10 plugin]),
  	[with_gstreamer010=${withval}],
-@@ -239,6 +244,26 @@ AS_IF([test "$with_gstreamer" != no], [
+@@ -279,6 +284,26 @@ AS_IF([test "$with_gstreamer" != no], [
  		])
  ])
  
@@ -50,7 +50,7 @@ index 36bd622..4193c13 100644
  AS_IF([test "$with_gstreamer010" != no], [
    
  	PKG_CHECK_MODULES(GST010, [
-@@ -260,9 +285,11 @@ AS_IF([test "$with_gstreamer010" != no], [
+@@ -300,9 +325,11 @@ AS_IF([test "$with_gstreamer010" != no], [
  ])
  
  AC_SUBST(gstplugindir)
