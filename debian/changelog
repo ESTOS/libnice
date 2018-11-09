@@ -1,10 +1,15 @@
-libnice (0.1.15-1kurento1~1.gbpd9c97d) UNRELEASED; urgency=medium
+libnice (0.1.15-1kurento2) UNRELEASED; urgency=medium
 
   ** SNAPSHOT build @d9c97d1e9fdc28b29a03102beb986114bb5e8a17 **
 
   * Add debian/ file changes required for Kurento
+  * Update debian/changelog with new snapshot version
+  * debian/control: Add pkg-create-dbgsym to build dependencies
+  * README.kurento: Add notes about debug packages in Ubuntu 18.04
+  * debian/patches: Cherry Pick old patches for Kurento
+  * Rebase debian/patches with upstream commit '5496500'
 
- -- Juan Navarro <juan.navarro@gmx.es>  Mon, 15 Oct 2018 18:12:05 +0200
+ -- Juan Navarro <juan.navarro@gmx.es>  Fri, 09 Nov 2018 16:41:07 +0100
 
 libnice (0.1.14-1) unstable; urgency=medium
 
