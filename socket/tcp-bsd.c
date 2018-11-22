@@ -61,6 +61,8 @@
 #define TCP_NODELAY 1
 #endif
 
+static GMutex mutex;
+
 typedef struct {
   NiceAddress remote_addr;
   GQueue send_queue;
@@ -214,6 +216,8 @@ socket_close (NiceSocket *sock)
 {
   TcpPriv *priv = sock->priv;
 
+  g_mutex_lock (&mutex);
+
   if (sock->fileno) {
     g_socket_close (sock->fileno, NULL);
     g_object_unref (sock->fileno);
@@ -229,6 +233,8 @@ socket_close (NiceSocket *sock)
   if (priv->context)
     g_main_context_unref (priv->context);
 
+  g_mutex_unlock (&mutex);
+
   g_slice_free(TcpPriv, sock->priv);
 }
 
@@ -239,9 +245,8 @@ socket_recv_messages (NiceSocket *sock,
   TcpPriv *priv = sock->priv;
   guint i;
 
-  /* Socket has been closed: */
-  if (sock->priv == NULL)
-    return 0;
+  /* Make sure socket has not been freed: */
+  g_assert (sock->priv != NULL);
 
   /* Don't try to access the socket if it had an error */
   if (priv->error)
@@ -293,9 +298,8 @@ socket_send_message (NiceSocket *sock,
   GError *gerr = NULL;
   gsize message_len;
 
-  /* Socket has been closed: */
-  if (sock->priv == NULL)
-    return -1;
+  /* Make sure socket has not been freed: */
+  g_assert (sock->priv != NULL);
 
   /* Don't try to access the socket if it had an error, otherwise we risk a
    * crash with SIGPIPE (Broken pipe) */
@@ -316,7 +320,7 @@ socket_send_message (NiceSocket *sock,
         /* Queue the message and send it later. */
         nice_socket_queue_send_with_callback (&priv->send_queue,
             message, 0, message_len, FALSE, sock->fileno, &priv->io_source,
-            priv->context, (GSourceFunc) socket_send_more, sock);
+            priv->context, socket_send_more, sock);
         ret = message_len;
       }
 
@@ -325,7 +329,7 @@ socket_send_message (NiceSocket *sock,
       /* Partial send. */
       nice_socket_queue_send_with_callback (&priv->send_queue,
           message, ret, message_len, TRUE, sock->fileno, &priv->io_source,
-          priv->context, (GSourceFunc) socket_send_more, sock);
+          priv->context, socket_send_more, sock);
       ret = message_len;
     }
   } else {
@@ -334,7 +338,7 @@ socket_send_message (NiceSocket *sock,
       /* Queue the message and send it later. */
       nice_socket_queue_send_with_callback (&priv->send_queue,
           message, 0, message_len, FALSE, sock->fileno, &priv->io_source,
-          priv->context, (GSourceFunc) socket_send_more, sock);
+          priv->context, socket_send_more, sock);
       ret = message_len;
     } else {
       /* non reliable send, so we shouldn't queue the message */
@@ -354,9 +358,8 @@ socket_send_messages (NiceSocket *sock, const NiceAddress *to,
 {
   guint i;
 
-  /* Socket has been closed: */
-  if (sock->priv == NULL)
-    return -1;
+  /* Make sure socket has not been freed: */
+  g_assert (sock->priv != NULL);
 
   for (i = 0; i < n_messages; i++) {
     const NiceOutputMessage *message = &messages[i];
@@ -429,12 +432,12 @@ socket_send_more (
   NiceSocket *sock = (NiceSocket *) data;
   TcpPriv *priv = sock->priv;
 
-  agent_lock ();
+  g_mutex_lock (&mutex);
 
   if (g_source_is_destroyed (g_main_current_source ())) {
     nice_debug ("Source was destroyed. "
         "Avoided race condition in tcp-bsd.c:socket_send_more");
-    agent_unlock ();
+    g_mutex_unlock (&mutex);
     return FALSE;
   }
 
@@ -446,7 +449,7 @@ socket_send_more (
     g_source_unref (priv->io_source);
     priv->io_source = NULL;
 
-    agent_unlock ();
+    g_mutex_unlock (&mutex);
 
     if (priv->writable_cb)
       priv->writable_cb (sock, priv->writable_data);
@@ -454,6 +457,6 @@ socket_send_more (
     return FALSE;
   }
 
-  agent_unlock ();
+  g_mutex_unlock (&mutex);
   return TRUE;
 }

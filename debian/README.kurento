@@ -1,0 +1,32 @@
+Kurento changes from upstream
+=============================
+
+- Use 'debhelper (>= 9)': Debian packager uses version 10, but that
+  is only available in 16.04 as backport. Default version for both 16.04
+  and 14.04 is 9.
+  Also changed in file 'debian/compat'.
+
+- dh-autoreconf: debhelper 10 already depends on dh-autoreconf, but version 9
+  doesn't.
+
+
+
+Debug symbols
+=============
+
+By default, 'dh_strip' in Debian will generate '-dbgsym' packages automatically
+from each binary package defined in the control file. This supersedes the need
+to define '-dbg' files explicitly and manually:
+
+    https://wiki.debian.org/AutomaticDebugPackages
+
+This mechanism is also working in Ubuntu, but only if the package
+'pkg-create-dbgsym' is already installed at build time, so we need to install
+it in our Docker build images.
+
+
+
+Note for migration to Ubuntu 18.04
+----------------------------------
+
+Looks like new debhelper in 18.04 LTS already does automatically what pkg-create-dbgsym was doing before, so pkg-create-dbgsym is not needed any more.

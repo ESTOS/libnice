@@ -377,6 +377,45 @@ typedef enum
   NICE_PROXY_TYPE_LAST = NICE_PROXY_TYPE_HTTP,
 } NiceProxyType;
 
+/**
+ * NiceNominationMode:
+ * @NICE_NOMINATION_MODE_AGGRESSIVE: Aggressive nomination mode
+ * @NICE_NOMINATION_MODE_REGULAR: Regular nomination mode
+ *
+ * An enum to specity the kind of nomination mode to use by
+ * the agent, as described in RFC 5245. Two modes exists,
+ * regular and aggressive. They differ by the way the controlling
+ * agent chooses to put the USE-CANDIDATE attribute in its STUN
+ * messages. The aggressive mode is supposed to nominate a pair
+ * faster, than the regular mode, potentially causing the nominated
+ * pair to change until the connection check completes.
+ *
+ * Since: 0.1.15
+ */
+typedef enum
+{
+  NICE_NOMINATION_MODE_REGULAR = 0,
+  NICE_NOMINATION_MODE_AGGRESSIVE,
+} NiceNominationMode;
+
+/**
+ * NiceAgentOption:
+ * @NICE_AGENT_OPTION_REGULAR_NOMINATION: Enables regular nomination, default
+ *  is aggrssive mode (see #NiceNominationMode).
+ * @NICE_AGENT_OPTION_RELIABLE: Enables reliable mode, possibly using PseudoTCP, *  see nice_agent_new_reliable().
+ * @NICE_AGENT_OPTION_LITE_MODE: Enable lite mode
+ *
+ * These are options that can be passed to nice_agent_new_full(). They set
+ * various properties on the agent. Not including them sets the property to
+ * the other value.
+ *
+ * Since: 0.1.15
+ */
+typedef enum {
+  NICE_AGENT_OPTION_REGULAR_NOMINATION = 1 << 0,
+  NICE_AGENT_OPTION_RELIABLE = 1 << 1,
+  NICE_AGENT_OPTION_LITE_MODE = 1 << 2,
+} NiceAgentOption;
 
 /**
  * NiceAgentRecvFunc:
@@ -429,6 +468,26 @@ NiceAgent *
 nice_agent_new_reliable (GMainContext *ctx, NiceCompatibility compat);
 
 /**
+ * nice_agent_new_full:
+ * @ctx: The Glib Mainloop Context to use for timers
+ * @compat: The compatibility mode of the agent
+ * @flags: Flags to set the properties
+ *
+ * Create a new #NiceAgent with parameters that must be be defined at
+ * construction time.
+ * The returned object must be freed with g_object_unref()
+ * <para> See also: #NiceNominationMode and #NiceAgentOption</para>
+ *
+ * Since: 0.1.15
+ *
+ * Returns: The new agent GObject
+ */
+NiceAgent *
+nice_agent_new_full (GMainContext *ctx,
+  NiceCompatibility compat,
+  NiceAgentOption flags);
+
+/**
  * nice_agent_add_local_address:
  * @agent: The #NiceAgent Object
  * @addr: The address to listen to
@@ -446,7 +505,6 @@ nice_agent_new_reliable (GMainContext *ctx, NiceCompatibility compat);
  */
 gboolean
 nice_agent_add_local_address (NiceAgent *agent, NiceAddress *addr);
-
 
 /**
  * nice_agent_add_stream:

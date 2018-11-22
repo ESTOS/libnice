@@ -1,0 +1,29 @@
+From: Jose Antonio Santos Cadenas <santoscadenas@gmail.com>
+Date: Fri, 29 Jan 2016 19:04:54 +0100
+Subject: conncheck.c: Fix negotiation problem
+
+When a peer reflexive candidate is discovered, it is added to the
+list of connection checks, but is is not nominated by default.
+
+This causes a problem if parent pair is already nominated and
+the remote peer does not send more requests because it has already
+selected a candidate. (i.e.: This is the case of WebRtc in Firefox)
+
+Change-Id: I01ccc5b8968df343992a6e2f21a4910bbabf6366
+---
+ agent/conncheck.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/agent/conncheck.c b/agent/conncheck.c
+index 0821bdc..2993a97 100644
+--- a/agent/conncheck.c
++++ b/agent/conncheck.c
+@@ -2935,7 +2935,7 @@ static CandidateCheckPair *priv_add_peer_reflexive_pair (NiceAgent *agent, guint
+   else
+     pair->priority = nice_candidate_pair_priority (pair->remote->priority,
+         pair->local->priority);
+-  pair->nominated = FALSE;
++  pair->nominated = parent_pair->nominated;
+   pair->prflx_priority = ensure_unique_priority (stream, component,
+       peer_reflexive_candidate_priority (agent, local_cand));
+   nice_debug ("Agent %p : added a new peer-discovered pair with "

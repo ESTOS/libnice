@@ -98,7 +98,7 @@ guint32 right_stream_pos = 0;
 /* Configuration options. */
 gint64 seed = 0;
 guint32 fuzz_start_pos = 1;  /* bytes into stream payload; after the SYN-ACKs */
-guint n_changes_lambda = 2;  /* lambda parameter for a Poisson distribution
+guint n_changes_lambda = 1;  /* lambda parameter for a Poisson distribution
                               * controlling the number of mutations made to each
                               * packet */
 
@@ -129,7 +129,7 @@ write_to_sock (PseudoTcpSocket *sock)
       total += wlen;
       total_read += wlen;
       if (wlen < (gint) len) {
-        g_debug ("seeking  %ld from %lu", wlen - len, ftell (in));
+        g_debug ("seeking  %" G_GSIZE_FORMAT " from %lu", wlen - len, ftell (in));
         fseek (in, wlen - len, SEEK_CUR);
         g_assert (!feof (in));
         g_debug ("Socket queue full after %d bytes written", total);
@@ -270,7 +270,7 @@ fuzz_packet (guint8 *buf, guint32 len, guint32 stream_pos)
 {
   guint32 i;
   guint n_changes;
-#define TCP_HEADER_LENGTH 32 /* bytes; or thereabouts (include some options) */
+#define HEADER_LENGTH 24 /* bytes; or thereabouts (include some options) */
 
   /* Do we want to fuzz this packet? */
   if (stream_pos < fuzz_start_pos) {
@@ -285,7 +285,7 @@ fuzz_packet (guint8 *buf, guint32 len, guint32 stream_pos)
       n_changes, stream_pos);
 
   for (i = 0; i < n_changes; i++) {
-    guint32 pos = g_rand_int_range (prng, 0, MIN (len, TCP_HEADER_LENGTH));
+    guint32 pos = g_rand_int_range (prng, 0, MIN (len, HEADER_LENGTH));
     g_debug (" • Changing byte %u.", stream_pos + pos);
     buf[pos] = g_rand_int_range (prng, 0, G_MAXUINT8 + 1);
   }
@@ -355,7 +355,7 @@ static void adjust_clock (PseudoTcpSocket *sock)
 
   if (pseudo_tcp_socket_get_next_clock (sock, &timeout)) {
     timeout -= g_get_monotonic_time () / 1000;
-    g_debug ("Socket %p: Adjusting clock to %ld ms", sock, timeout);
+    g_debug ("Socket %p: Adjusting clock to %" G_GUINT64_FORMAT " ms", sock, timeout);
     if (sock == left) {
       if (left_clock != 0)
          g_source_remove (left_clock);

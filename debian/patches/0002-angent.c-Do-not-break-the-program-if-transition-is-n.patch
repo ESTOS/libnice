@@ -1,0 +1,22 @@
+From: Jose Antonio Santos Cadenas <santoscadenas@gmail.com>
+Date: Tue, 23 Feb 2016 11:50:06 +0100
+Subject: angent.c: Do not break the program if transition is not correct
+
+Change-Id: Iadc93b2473da2068ecc9d39f4eb649aef11e79fa
+---
+ agent/agent.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/agent/agent.c b/agent/agent.c
+index c4de0af..3deebd9 100644
+--- a/agent/agent.c
++++ b/agent/agent.c
+@@ -2391,7 +2391,7 @@ void agent_signal_component_state_change (NiceAgent *agent, guint stream_id, gui
+   (old_state == NICE_COMPONENT_STATE_##OLD && \
+    new_state == NICE_COMPONENT_STATE_##NEW)
+ 
+-  g_assert (/* Can (almost) always transition to FAILED (including
++  g_warn_if_fail (/* Can (almost) always transition to FAILED (including
+              * DISCONNECTED → FAILED which happens if one component fails
+              * before another leaves DISCONNECTED): */
+             TRANSITION (DISCONNECTED, FAILED) ||

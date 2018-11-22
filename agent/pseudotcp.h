@@ -78,6 +78,14 @@
 #ifndef ECONNRESET
 #  define ECONNRESET WSAECONNRESET
 #endif
+
+#ifndef EMSGSIZE
+#  define EMSGSIZE WSAEMSGSIZE
+#endif
+
+#ifndef ETIMEDOUT
+#  define ETIMEDOUT WSAETIMEDOUT
+#endif
 #endif
 #endif
 
@@ -114,17 +122,6 @@ GType pseudo_tcp_socket_get_type (void);
 #define PSEUDOTCP_SOCKET_GET_CLASS(obj) \
   (G_TYPE_INSTANCE_GET_CLASS ((obj), PSEUDO_TCP_SOCKET_TYPE, \
                               PseudoTcpSocketClass))
-
-struct _PseudoTcpSocketClass {
-    GObjectClass parent_class;
-};
-
-typedef struct _PseudoTcpSocketPrivate PseudoTcpSocketPrivate;
-
-struct _PseudoTcpSocket {
-    GObject parent;
-    PseudoTcpSocketPrivate *priv;
-};
 
 /**
  * PseudoTcpDebugLevel:

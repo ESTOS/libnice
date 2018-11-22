@@ -106,7 +106,6 @@ nice_input_message_iter_compare (const NiceInputMessageIter *a,
 
 #define NICE_AGENT_TIMER_TA_DEFAULT 20      /* timer Ta, msecs (impl. defined) */
 #define NICE_AGENT_TIMER_TR_DEFAULT 25000   /* timer Tr, msecs (impl. defined) */
-#define NICE_AGENT_TIMER_TR_MIN     15000   /* timer Tr, msecs (ICE ID-19) */
 #define NICE_AGENT_MAX_CONNECTIVITY_CHECKS_DEFAULT 100 /* see spec 5.7.3 (ID-19) */
 
 
@@ -114,12 +113,34 @@ nice_input_message_iter_compare (const NiceInputMessageIter *a,
  * MTU and estimated typical sizes of ICE STUN packet */
 #define MAX_STUN_DATAGRAM_PAYLOAD    1300
 
+#define NICE_COMPONENT_MAX_VALID_CANDIDATES 50 /* maximum number of validates remote candidates to keep, the number is arbitrary but hopefully large enough */
+
+/* A convenient macro to test if the agent is compatible with RFC5245
+ * or OC2007R2. Specifically these two modes share the support
+ * of the regular or aggressive nomination mode */
+#define NICE_AGENT_IS_COMPATIBLE_WITH_RFC5245_OR_OC2007R2(obj) \
+  ((obj)->compatibility == NICE_COMPATIBILITY_RFC5245 || \
+  (obj)->compatibility == NICE_COMPATIBILITY_OC2007R2)
+
+/* A grace period before declaring a component as failed, in msecs. This
+ * delay is added to reduce the chance to see the agent receiving new
+ * stun activity just after the conncheck list has been declared failed,
+ * reactiviting conncheck activity, and causing a (valid) state
+ * transitions like that: connecting -> failed -> connecting ->
+ * connected -> ready.
+ * Such transitions are not buggy per-se, but may break the
+ * test-suite, that counts precisely the number of time each state
+ * has been set, and doesnt expect these transcient failed states.
+ */
+#define NICE_AGENT_MAX_TIMER_GRACE_PERIOD 1000
+
 struct _NiceAgent
 {
   GObject parent;                 /* gobject pointer */
 
+  GMutex agent_mutex;             /* Mutex used for thread-safe lib */
+
   gboolean full_mode;             /* property: full-mode */
-  GTimeVal next_check_tv;         /* property: next conncheck timestamp */
   gchar *stun_server_ip;          /* property: STUN server IP */
   guint stun_server_port;         /* property: STUN server port */
   gchar *proxy_ip;                /* property: Proxy server IP */
@@ -127,9 +148,14 @@ struct _NiceAgent
   NiceProxyType proxy_type;       /* property: Proxy type */
   gchar *proxy_username;          /* property: Proxy username */
   gchar *proxy_password;          /* property: Proxy password */
-  gboolean controlling_mode;      /* property: controlling-mode */
+  gboolean saved_controlling_mode;/* property: controlling-mode */
   guint timer_ta;                 /* property: timer Ta */
   guint max_conn_checks;          /* property: max connectivity checks */
+  gboolean force_relay;           /* property: force relay */
+  guint stun_max_retransmissions; /* property: stun max retransmissions, Rc */
+  guint stun_initial_timeout;     /* property: stun initial timeout, RTO */
+  guint stun_reliable_timeout;    /* property: stun reliable timeout */
+  NiceNominationMode nomination_mode; /* property: Nomination mode */
 
   GSList *local_addresses;        /* list of NiceAddresses for local
 				     interfaces */
@@ -139,6 +165,7 @@ struct _NiceAgent
   guint next_stream_id;           /* id of next created candidate */
   NiceRNG *rng;                   /* random number generator */
   GSList *discovery_list;         /* list of CandidateDiscovery items */
+  GSList *triggered_check_queue;  /* pairs in the triggered check list */
   guint discovery_unsched_items;  /* number of discovery items unscheduled */
   GSource *discovery_timer_source; /* source of discovery timer */
   GSource *conncheck_timer_source; /* source of conncheck timer */
@@ -163,6 +190,10 @@ struct _NiceAgent
   guint16 rfc4571_expecting_length;
   gboolean use_ice_udp;
   gboolean use_ice_tcp;
+
+  guint conncheck_timer_grace_period; /* ongoing delay before timer stop */
+  gboolean controlling_mode;          /* controlling mode used by the
+                                         conncheck */
   /* XXX: add pointer to internal data struct for ABI-safe extensions */
 };
 
@@ -172,15 +203,15 @@ agent_find_component (
   guint stream_id,
   guint component_id,
   NiceStream **stream,
-  NiceComponent **component);
+  NiceComponent **component) G_GNUC_WARN_UNUSED_RESULT;
 
 NiceStream *agent_find_stream (NiceAgent *agent, guint stream_id);
 
 void agent_gathering_done (NiceAgent *agent);
 void agent_signal_gathering_done (NiceAgent *agent);
 
-void agent_lock (void);
-void agent_unlock (void);
+void agent_lock (NiceAgent *agent);
+void agent_unlock (NiceAgent *agent);
 void agent_unlock_and_emit (NiceAgent *agent);
 
 void agent_signal_new_selected_pair (
@@ -206,8 +237,14 @@ void agent_signal_initial_binding_request_received (NiceAgent *agent, NiceStream
 
 guint64 agent_candidate_pair_priority (NiceAgent *agent, NiceCandidate *local, NiceCandidate *remote);
 
+typedef gboolean (*NiceTimeoutLockedCallback)(NiceAgent *agent,
+    gpointer user_data);
 void agent_timeout_add_with_context (NiceAgent *agent, GSource **out,
-    const gchar *name, guint interval, GSourceFunc function, gpointer data);
+    const gchar *name, guint interval, NiceTimeoutLockedCallback function,
+    gpointer data);
+void agent_timeout_add_seconds_with_context (NiceAgent *agent, GSource **out,
+    const gchar *name, guint interval, NiceTimeoutLockedCallback function,
+    gpointer data);
 
 StunUsageIceCompatibility agent_to_ice_compatibility (NiceAgent *agent);
 StunUsageTurnCompatibility agent_to_turn_compatibility (NiceAgent *agent);

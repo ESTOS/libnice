@@ -45,7 +45,7 @@ stamp-h1
 test-driver
 
 # top level stuff
-debian
+#debian
 
 # address/ stuff
 address/libaddress.la
@@ -154,6 +154,7 @@ tests/test-restart
 tests/test-tcp
 tests/test-thread
 tests/test-new-dribble
+tests/test-nomination
 
 # examples/ stuff
 examples/simple-example

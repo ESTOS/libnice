@@ -1,22 +1,28 @@
 #!/usr/bin/make -f
 
-include /usr/share/cdbs/1/rules/autoreconf.mk
-include /usr/share/cdbs/1/rules/debhelper.mk
-include /usr/share/cdbs/1/class/autotools.mk
+%:
+	dh $@ --with autoreconf,gir
 
-# List any files which are not installed
-include /usr/share/cdbs/1/rules/utils.mk
-common-binary-post-install-arch:: list-missing
+override_dh_autoreconf:
+	dh_autoreconf ./autogen.sh
 
-DEB_DBG_PACKAGE_libnice10 := libnice-dbg
+override_dh_auto_configure:
+	dh_auto_configure -- --libdir=\$${prefix}/lib/$(DEB_HOST_MULTIARCH) \
+	                     --enable-compile-warnings=yes \
+	                     --enable-gupnp \
+	                     --enable-gtk-doc \
+	                     --with-gstreamer \
+	                     --with-gstreamer-1.5 \
+	                     --enable-introspection \
+	                     --with-ignored-network-interface-prefix=docker
 
-DEB_CONFIGURE_EXTRA_FLAGS := --libdir=\$${prefix}/lib/$(DEB_HOST_MULTIARCH) \
-	--enable-compile-warnings=yes \
-	--enable-gupnp \
-	--enable-gtk-doc \
-	--with-gstreamer-0.10 \
-	--with-gstreamer \
-	--with-gstreamer-1.5 \
-	$(NULL)
+override_dh_install:
+	dh_install --list-missing
 
-include $(CURDIR)/debian/update-patches.mk
+override_dh_installchangelogs:
+	dh_installchangelogs NEWS
+
+override_dh_strip:
+	dh_strip --dbgsym-migration='libnice-dbg (<< 0.1.14)'
+
+override_dh_auto_test:

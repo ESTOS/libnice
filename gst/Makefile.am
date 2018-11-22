@@ -36,23 +36,6 @@ libgstnice_la_LIBADD = 	$(COMMON_LIBADD) $(GST_LIBS)
 libgstnice_la_LDFLAGS = -module -avoid-version -no-undefined
 endif
 
-if WITH_GSTREAMER15
-gstplugin15_LTLIBRARIES = libgstnice15.la
-
-libgstnice15_la_CFLAGS = $(AM_CFLAGS) $(GST15_CFLAGS) -DGST_USE_UNSTABLE_API
-
-libgstnice15_la_SOURCES = \
-	gstnicesrc.h \
-	gstnicesrc.c \
-	gstnicesink.h \
-	gstnicesink.c \
-	gstnice.h \
-	gstnice.c
-
-libgstnice15_la_LIBADD = $(COMMON_LIBADD) $(GST15_LIBS)
-
-libgstnice15_la_LDFLAGS = -module -avoid-version -no-undefined
-endif
 
 if WITH_GSTREAMER010
 gstplugin010_LTLIBRARIES = libgstnice010.la

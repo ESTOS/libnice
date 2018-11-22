@@ -1,0 +1,164 @@
+From: Juan Navarro <juan.navarro@gmx.es>
+Date: Wed, 21 Nov 2018 16:19:10 +0100
+Subject: fix socket crash
+
+Apply changes from upstream Merge Request 15:
+https://gitlab.freedesktop.org/libnice/libnice/merge_requests/15
+
+Fixes upstream issue 33:
+https://gitlab.freedesktop.org/libnice/libnice/issues/33
+---
+ socket/tcp-bsd.c     | 28 ++++++++++++++++++++++++++++
+ socket/tcp-bsd.h     |  3 +++
+ socket/tcp-passive.c | 19 ++++++++++++++++++-
+ socket/tcp-passive.h |  3 +++
+ 4 files changed, 52 insertions(+), 1 deletion(-)
+
+diff --git a/socket/tcp-bsd.c b/socket/tcp-bsd.c
+index 8f3ac89..3c40f34 100644
+--- a/socket/tcp-bsd.c
++++ b/socket/tcp-bsd.c
+@@ -46,6 +46,8 @@
+ #include "agent-priv.h"
+ #include "socket-priv.h"
+ 
++#include "tcp-passive.h"
++
+ #include <string.h>
+ #include <errno.h>
+ #include <fcntl.h>
+@@ -70,6 +72,7 @@ typedef struct {
+   gboolean reliable;
+   NiceSocketWritableCb writable_cb;
+   gpointer writable_data;
++  NiceSocket *passive_parent;
+ } TcpPriv;
+ 
+ #define MAX_QUEUE_LENGTH 20
+@@ -205,6 +208,8 @@ nice_tcp_bsd_socket_new (GMainContext *ctx, NiceAddress *local_addr,
+       reliable);
+   g_object_unref (gsock);
+ 
++  nice_debug ("tcp socket %p created", sock);
++
+   return sock;
+ }
+ 
+@@ -226,6 +231,14 @@ socket_close (NiceSocket *sock)
+     g_source_unref (priv->io_source);
+   }
+ 
++  if (priv->passive_parent) {
++    nice_debug("tcp socket %p has passive parent connection %p, removing", sock,
++        priv->passive_parent);
++    nice_tcp_passive_socket_remove_connection (priv->passive_parent, &priv->remote_addr);
++  } else {
++    nice_debug("tcp socket %p has no passive parent", sock);
++  }
++
+   nice_socket_free_send_queue (&priv->send_queue);
+ 
+   if (priv->context)
+@@ -359,6 +372,8 @@ socket_send_messages (NiceSocket *sock, const NiceAddress *to,
+   /* Make sure socket has not been freed: */
+   g_assert (sock->priv != NULL);
+ 
++  nice_debug ("tcp socket %p sending", sock);
++
+   for (i = 0; i < n_messages; i++) {
+     const NiceOutputMessage *message = &messages[i];
+     gssize len;
+@@ -458,3 +473,16 @@ socket_send_more (
+   g_mutex_unlock (&mutex);
+   return TRUE;
+ }
++
++void
++nice_tcp_bsd_socket_set_passive_parent (NiceSocket *sock, NiceSocket *passive_parent)
++{
++  TcpPriv *priv = sock->priv;
++
++  g_assert (priv->passive_parent == NULL);
++
++  nice_debug ("tcp socket %p has passive parent %p set",
++      sock, passive_parent);
++
++  priv->passive_parent = passive_parent;
++}
+diff --git a/socket/tcp-bsd.h b/socket/tcp-bsd.h
+index 58349cc..615b759 100644
+--- a/socket/tcp-bsd.h
++++ b/socket/tcp-bsd.h
+@@ -49,6 +49,9 @@ NiceSocket *
+ nice_tcp_bsd_socket_new_from_gsock (GMainContext *ctx, GSocket *gsock,
+     NiceAddress *remote_addr, NiceAddress *local_addr, gboolean reliable);
+ 
++void
++nice_tcp_bsd_socket_set_passive_parent (NiceSocket *socket, NiceSocket *passive_parent);
++
+ G_END_DECLS
+ 
+ #endif /* _TCP_BSD_H */
+diff --git a/socket/tcp-passive.c b/socket/tcp-passive.c
+index 131ff4b..a754163 100644
+--- a/socket/tcp-passive.c
++++ b/socket/tcp-passive.c
+@@ -173,6 +173,8 @@ nice_tcp_passive_socket_new (GMainContext *ctx, NiceAddress *addr)
+   sock->set_writable_callback = socket_set_writable_callback;
+   sock->close = socket_close;
+ 
++  nice_debug ("passive tcp socket %p created", sock);
++
+   return sock;
+ }
+ 
+@@ -207,8 +209,13 @@ static gint socket_send_messages (NiceSocket *sock, const NiceAddress *to,
+ 
+   if (to) {
+     NiceSocket *peer_socket = g_hash_table_lookup (priv->connections, to);
+-    if (peer_socket)
++    if (peer_socket) {
++      nice_debug ("Sending on passive tcp socket %p using real socket %p",
++          sock, peer_socket);
+       return nice_socket_send_messages (peer_socket, to, messages, n_messages);
++    } else {
++      nice_debug ("Not sending on passive tcp socket %p because no active socket", sock);
++    }
+   }
+   return -1;
+ }
+@@ -310,6 +317,9 @@ nice_tcp_passive_socket_accept (NiceSocket *sock)
+   if (new_socket) {
+     NiceAddress *key = nice_address_dup (&remote_addr);
+ 
++    nice_tcp_bsd_socket_set_passive_parent (new_socket, sock);
++    nice_debug("tcp socket %p parent set to %p", sock, new_socket);
++
+     nice_socket_set_writable_callback (new_socket, _child_writable_cb, sock);
+     g_hash_table_insert (priv->connections, key, new_socket);
+   }
+@@ -329,3 +339,10 @@ static guint nice_address_hash (const NiceAddress * key)
+ 
+   return hash;
+ }
++
++void nice_tcp_passive_socket_remove_connection (NiceSocket *sock, const NiceAddress *to)
++{
++  TcpPassivePriv *priv = sock->priv;
++
++  g_hash_table_remove (priv->connections, to);
++}
+diff --git a/socket/tcp-passive.h b/socket/tcp-passive.h
+index 37e780b..914f081 100644
+--- a/socket/tcp-passive.h
++++ b/socket/tcp-passive.h
+@@ -46,6 +46,9 @@ G_BEGIN_DECLS
+ NiceSocket * nice_tcp_passive_socket_new (GMainContext *ctx, NiceAddress *addr);
+ NiceSocket * nice_tcp_passive_socket_accept (NiceSocket *socket);
+ 
++void nice_tcp_passive_socket_remove_connection (NiceSocket *socket,
++    const NiceAddress *to);
++
+ 
+ G_END_DECLS
+ 
