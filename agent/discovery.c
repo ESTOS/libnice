@@ -715,7 +715,8 @@ discovery_add_relay_candidate (
   NiceAddress *address,
   NiceCandidateTransport transport,
   NiceSocket *base_socket,
-  TurnServer *turn)
+  TurnServer *turn,
+  NiceAddress *niceaddr_relay_mapped)
 {
   NiceCandidate *candidate;
   NiceComponent *component;
@@ -741,7 +742,7 @@ discovery_add_relay_candidate (
     goto errors;
 
   candidate->sockptr = relay_socket;
-  candidate->base_addr = base_socket->addr;
+  candidate->base_addr = *niceaddr_relay_mapped;
 
   if (agent->compatibility == NICE_COMPATIBILITY_GOOGLE) {
     candidate->priority = nice_candidate_jingle_priority (candidate);

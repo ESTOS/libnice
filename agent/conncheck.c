@@ -3521,11 +3521,12 @@ static gboolean priv_map_reply_to_relay_request (NiceAgent *agent, StunMessage *
           /* case: successful allocate, create a new local candidate */
           NiceAddress niceaddr;
           NiceCandidate *relay_cand;
+          NiceAddress mappedniceaddr;
 
           nice_address_set_from_sockaddr (&niceaddr, &relayaddr.addr);
+		  mappedniceaddr = d->nicesock->addr;
 
           if (res == STUN_USAGE_TURN_RETURN_MAPPED_SUCCESS) {
-            NiceAddress mappedniceaddr;
 
             /* We also received our mapped address */
             nice_address_set_from_sockaddr (&mappedniceaddr, &sockaddr.addr);
@@ -3570,7 +3571,8 @@ static gboolean priv_map_reply_to_relay_request (NiceAgent *agent, StunMessage *
                 &niceaddr,
                 NICE_CANDIDATE_TRANSPORT_TCP_ACTIVE,
                 d->nicesock,
-                d->turn);
+                d->turn,
+                &mappedniceaddr);
 
             if (relay_cand) {
               if (agent->compatibility == NICE_COMPATIBILITY_OC2007 ||
@@ -3591,7 +3593,8 @@ static gboolean priv_map_reply_to_relay_request (NiceAgent *agent, StunMessage *
                 &niceaddr,
                 NICE_CANDIDATE_TRANSPORT_TCP_PASSIVE,
                 d->nicesock,
-                d->turn);
+                d->turn,
+                &mappedniceaddr);
           } else {
             relay_cand = discovery_add_relay_candidate (
                 agent,
@@ -3600,7 +3603,8 @@ static gboolean priv_map_reply_to_relay_request (NiceAgent *agent, StunMessage *
                 &niceaddr,
                 NICE_CANDIDATE_TRANSPORT_UDP,
                 d->nicesock,
-                d->turn);
+                d->turn,
+                &mappedniceaddr);
           }
 
           if (relay_cand) {
