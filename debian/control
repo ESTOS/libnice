@@ -6,7 +6,7 @@ Uploaders: Dafydd Harries <daf@debian.org>,
            Sjoerd Simons <sjoerd@debian.org>,
            Laurent Bigonville <bigon@debian.org>
 Build-Depends: debhelper (>= 9),
-               pkg-create-dbgsym,
+               debhelper (>= 10) | pkg-create-dbgsym,
                dh-autoreconf,
                gobject-introspection (>= 1.30.0),
                gtk-doc-tools,
