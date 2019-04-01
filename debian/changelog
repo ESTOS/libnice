@@ -1,6 +1,21 @@
-libnice (0.1.15-1kurento2) UNRELEASED; urgency=medium
+libnice (0.1.15-1kurento3) UNRELEASED; urgency=medium
 
-  ** SNAPSHOT build @d9c97d1e9fdc28b29a03102beb986114bb5e8a17 **
+  * Update debian/changelog with new snapshot version
+  * debian/control: Add pkg-create-dbgsym to build dependencies
+  * README.kurento: Add notes about debug packages in Ubuntu 18.04
+  * debian/patches: Cherry Pick old patches for Kurento
+  * Rebase debian/patches with upstream commit '5496500'
+  * New snapshot version for Kurento: '0.1.15-1kurento2'
+  * debian/patches: Apply upstream MR !15
+  * Upstream MR !15 was merged, remove our patch
+  * Remove patch 'Add connecting -> gathering possible state'
+  * debian/gbp: Configure for Kurento fork build
+  * debian/control: Force installing 'pkg-create-dbgsym' in 16.04
+  * Prepare release 0.1.15-1kurento3
+
+ -- Juan Navarro <juan.navarro@gmx.es>  Mon, 01 Apr 2019 19:47:22 +0200
+
+libnice (0.1.15-1kurento2) UNRELEASED; urgency=medium
 
   * Add debian/ file changes required for Kurento
   * Update debian/changelog with new snapshot version
