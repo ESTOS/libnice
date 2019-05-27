@@ -1,5 +1,13 @@
-Kurento changes from upstream
-=============================
+External repositories
+=====================
+
+- Upstream: https://gitlab.com/libnice/libnice
+- Debian/Ubuntu package: https://salsa.debian.org/telepathy-team/libnice
+
+
+
+Kurento changes from Debian maintainer
+======================================
 
 - Use 'debhelper (>= 9)': Debian packager uses version 10, but that
   is only available in 16.04 as backport. Default version for both 16.04
