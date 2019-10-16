@@ -5,6 +5,7 @@ libnice (0.1.16-1) UNRELEASED; urgency=medium
   * Remove Dafydd from uploaders.
   * Bump glib dependency.
   * libnice10.symbols: add Build-Depends-Package field.
+  * libnice10.symbols: add new symbols.
 
  -- Emilio Pozuelo Monfort <pochu@debian.org>  Wed, 16 Oct 2019 10:02:57 +0200
 
