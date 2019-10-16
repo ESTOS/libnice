@@ -3,6 +3,7 @@ libnice (0.1.16-1) UNRELEASED; urgency=medium
   * Team upload.
   * New upstream release.
   * Remove Dafydd from uploaders.
+  * Bump glib dependency.
 
  -- Emilio Pozuelo Monfort <pochu@debian.org>  Wed, 16 Oct 2019 10:02:57 +0200
 
