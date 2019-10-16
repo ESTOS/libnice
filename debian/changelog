@@ -6,6 +6,7 @@ libnice (0.1.16-1) UNRELEASED; urgency=medium
   * Bump glib dependency.
   * libnice10.symbols: add Build-Depends-Package field.
   * libnice10.symbols: add new symbols.
+  * Update Vcs for salsa.
 
  -- Emilio Pozuelo Monfort <pochu@debian.org>  Wed, 16 Oct 2019 10:02:57 +0200
 
