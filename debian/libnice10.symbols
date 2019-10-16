@@ -1,4 +1,5 @@
 libnice.so.10 libnice10 #MINVER#
+* Build-Depends-Package: libnice-dev
  nice_address_copy_to_sockaddr@Base 0.1.0
  nice_address_dup@Base 0.1.0
  nice_address_equal@Base 0.1.0
