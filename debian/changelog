@@ -1,7 +1,7 @@
 libnice (0.1.16-1) UNRELEASED; urgency=medium
 
   * Team upload.
-  * New upstream release.
+  * New upstream release. Closes: #941977.
   * Remove Dafydd from uploaders.
   * Bump glib dependency.
 
