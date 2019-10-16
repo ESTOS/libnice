@@ -1,4 +1,4 @@
-libnice (0.1.16-1) UNRELEASED; urgency=medium
+libnice (0.1.16-1) unstable; urgency=medium
 
   * Team upload.
   * New upstream release. Closes: #941977.
@@ -8,7 +8,7 @@ libnice (0.1.16-1) UNRELEASED; urgency=medium
   * libnice10.symbols: add new symbols.
   * Update Vcs for salsa.
 
- -- Emilio Pozuelo Monfort <pochu@debian.org>  Wed, 16 Oct 2019 10:02:57 +0200
+ -- Emilio Pozuelo Monfort <pochu@debian.org>  Wed, 16 Oct 2019 10:20:08 +0200
 
 libnice (0.1.14-1) unstable; urgency=medium
 
