@@ -5,7 +5,7 @@ dnl Always compile with -Wall; if --enable-compile-warnings=error is passed,
 dnl also use -Werror. git and pre-releases default to -Werror
 
 dnl use a three digit version number for releases, and four for cvs/prerelease
-AC_INIT([libnice],[0.1.14])
+AC_INIT([libnice],[0.1.16])
 LIBNICE_RELEASE="yes"
 
 AC_CANONICAL_TARGET
@@ -39,9 +39,9 @@ AC_CONFIG_FILES([
 #      Increment CURRENT and AGE. Set REVISION to 0
 #    If there was an incompatible interface change:
 #      Increment CURRENT. Set AGE and REVISION to 0
-LIBNICE_CURRENT=17
+LIBNICE_CURRENT=19
 LIBNICE_REVISION=0
-LIBNICE_AGE=7
+LIBNICE_AGE=9
 LIBNICE_LIBVERSION=${LIBNICE_CURRENT}:${LIBNICE_REVISION}:${LIBNICE_AGE}
 LIBNICE_LT_LDFLAGS="-version-info ${LIBNICE_LIBVERSION} -no-undefined"
 AC_SUBST(LIBNICE_LT_LDFLAGS)
@@ -57,6 +57,7 @@ AC_PROG_CC
 AM_PROG_AR
 LT_PREREQ([2.2.6])
 LT_INIT([dlopen win32-dll disable-static])
+AC_PATH_PROG([GLIB_MKENUMS],[glib-mkenums])
 
 # Check Operating System
 AC_MSG_CHECKING([operating system])
@@ -87,13 +88,14 @@ AH_VERBATIM([_FORTIFY_SOURCE],
 #endif])
 AC_DEFINE([NICEAPI_EXPORT], [ ], [Public library function implementation])
 AC_CHECK_HEADERS([arpa/inet.h net/in.h netdb.h])
-AC_CHECK_HEADERS([ifaddrs.h], \
-		      [AC_DEFINE(HAVE_GETIFADDRS, [1], \
-		       [Whether getifaddrs() is available on the system])])
+AC_CHECK_HEADERS([ifaddrs.h],
+		[AC_CHECK_FUNCS([getifaddrs],
+			[AC_DEFINE(HAVE_GETIFADDRS, [1],
+				[Whether getifaddrs() is available on the system])])])
 AC_CHECK_TYPES([size_t, ssize_t])
 
 # Also put matching version in LIBNICE_CFLAGS
-GLIB_REQ=2.44
+GLIB_REQ=2.48
 
 LIBNICE_CFLAGS="-DGLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_44 -DGLIB_VERSION_MAX_ALLOWED=GLIB_VERSION_2_44"
 
@@ -135,6 +137,7 @@ AS_IF([test "x$enable_compile_warnings" != "xno" -a \
     NICE_ADD_FLAG([-Wcast-align])
     NICE_ADD_FLAG([-Wformat-nonliteral])
     NICE_ADD_FLAG([-Wformat-security])
+    NICE_ADD_FLAG([-Wno-cast-function-type])
 ])
 AS_IF([test "$enable_compile_warnings" = "yes" -o \
             "$enable_compile_warnings" = "maximum" -o \
@@ -153,7 +156,6 @@ AS_IF([test "$enable_compile_warnings" = "yes" -o \
 ])
 AS_IF([test "$enable_compile_warnings" = "maximum" -o \
             "$enable_compile_warnings" = "error"],[
-    NICE_ADD_FLAG([-Wswitch-enum])
     NICE_ADD_FLAG([-Wswitch-default])
     NICE_ADD_FLAG([-Waggregate-return])
 ])
@@ -184,15 +186,54 @@ AC_SUBST(LIBRT)
 
 # Dependencies
 
-GNUTLS_PACKAGES_PRIVATE="gnutls >= 2.12.0"
-PKG_CHECK_MODULES(GNUTLS, [$GNUTLS_PACKAGES_PRIVATE])
-
 NICE_PACKAGES_PUBLIC="glib-2.0 >= $GLIB_REQ gio-2.0 >= $GLIB_REQ gobject-2.0 >= $GLIB_REQ"
 NICE_PACKAGES_PRIVATE="gthread-2.0"
 
 PKG_CHECK_MODULES(GLIB, [$NICE_PACKAGES_PUBLIC $NICE_PACKAGES_PRIVATE])
 
-NICE_PACKAGES_PRIVATE="$NICE_PACKAGES_PRIVATE $GNUTLS_PACKAGES_PRIVATE"
+AC_ARG_WITH(crypto-library,
+	AS_HELP_STRING([--with-crypto-library=\{gnutls,openssl,auto\}],[select Crypto library (gnutls or openssl)]),
+	[with_crypto_library=${withval}],
+	[with_crypto_library=auto])
+
+
+AS_IF([test "$with_crypto_library" != "openssl"],
+	[
+	GNUTLS_PACKAGES_PRIVATE="gnutls >= 2.12.0"
+	PKG_CHECK_MODULES(GNUTLS, [$GNUTLS_PACKAGES_PRIVATE],
+		[
+		AC_DEFINE([HAVE_GNUTLS], [1], [Use GnuTLS])
+		GNUTLS_FOUND=yes
+		NICE_PACKAGES_PRIVATE="$NICE_PACKAGES_PRIVATE $GNUTLS_PACKAGES_PRIVATE"
+		],
+		[
+		AS_IF([test "$with_crypto_library" == "gnutls"],
+			[
+			AC_MSG_ERROR([Neither GnuTLS is not available])
+			]
+		)
+		]
+	)
+	]
+)
+
+AS_IF([test "x${GNUTLS_FOUND}" != "xyes"],
+        [
+	AX_CHECK_OPENSSL(
+		[
+		AC_DEFINE([HAVE_OPENSSL], [1], [Use OpenSSL])
+		NICE_PACKAGES_PRIVATE="$NICE_PACKAGES_PRIVATE libcrypto"
+		AC_MSG_NOTICE([OpenSSL selected])
+		],
+		[
+		AC_MSG_ERROR([Neither GnuTLS or OpenSSL is available])
+		]
+	)
+	],
+	[
+		AC_MSG_NOTICE([GnuTLS selected])
+	]
+)
 
 AC_SUBST([NICE_PACKAGES_PUBLIC])
 AC_SUBST([NICE_PACKAGES_PRIVATE])
@@ -353,6 +394,20 @@ AM_CONDITIONAL([ENABLE_GTK_DOC], false)
 
 # GObject introspection
 GOBJECT_INTROSPECTION_CHECK([1.30.0])
+
+dnl Ignore a specific network interface name prefix from the connection check
+AC_MSG_CHECKING([whether to ignore a specific network interface name prefix])
+AC_ARG_WITH([ignored-network-interface-prefix],
+  [AS_HELP_STRING([--with-ignored-network-interface-prefix=string],
+    [Ignore network interfaces whose name starts with "string" from the ICE connection
+     check algorithm. For example, interfaces "virbr" in the case of the virtual bridge
+     handled by libvirtd, do not help in finding connectivity.])],
+    [interface_prefix="$withval"])
+AS_IF([test -n "$interface_prefix"],
+  [AC_DEFINE_UNQUOTED([IGNORED_IFACE_PREFIX],["$interface_prefix"],
+    [Ignore this network interface prefix from the connection check])
+   AC_MSG_RESULT([yes, $interface_prefix])],
+  [AC_MSG_RESULT([no])])
 
 AC_CONFIG_MACRO_DIR(m4)
 

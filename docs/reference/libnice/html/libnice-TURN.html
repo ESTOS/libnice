@@ -3,12 +3,12 @@
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <title>TURN: libnice Reference Manual</title>
-<meta name="generator" content="DocBook XSL Stylesheets V1.79.1">
+<meta name="generator" content="DocBook XSL Stylesheets Vsnapshot">
 <link rel="home" href="index.html" title="libnice Reference Manual">
 <link rel="up" href="ch04.html" title="STUN usages">
 <link rel="prev" href="libnice-ICE.html" title="ICE">
 <link rel="next" href="libnice-Timer.html" title="Timer">
-<meta name="generator" content="GTK-Doc V1.25 (XML mode)">
+<meta name="generator" content="GTK-Doc V1.29 (XML mode)">
 <link rel="stylesheet" href="style.css" type="text/css">
 </head>
 <body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF">
@@ -352,11 +352,11 @@ request</p></td>
 <pre class="programlisting"><a class="link" href="libnice-TURN.html#StunUsageTurnReturn" title="enum StunUsageTurnReturn"><span class="returnvalue">StunUsageTurnReturn</span></a>
 stun_usage_turn_process (<em class="parameter"><code><a class="link" href="libnice-StunMessage.html#StunMessage" title="struct StunMessage"><span class="type">StunMessage</span></a> *msg</code></em>,
                          <em class="parameter"><code><span class="type">struct sockaddr_storage</span> *relay_addr</code></em>,
-                         <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> *relay_addrlen</code></em>,
+                         <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> *relay_addrlen</code></em>,
                          <em class="parameter"><code><span class="type">struct sockaddr_storage</span> *addr</code></em>,
-                         <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> *addrlen</code></em>,
+                         <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> *addrlen</code></em>,
                          <em class="parameter"><code><span class="type">struct sockaddr_storage</span> *alternate_server</code></em>,
-                         <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> *alternate_server_len</code></em>,
+                         <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> *alternate_server_len</code></em>,
                          <em class="parameter"><code><span class="type">uint32_t</span> *bandwidth</code></em>,
                          <em class="parameter"><code><span class="type">uint32_t</span> *lifetime</code></em>,
                          <em class="parameter"><code><a class="link" href="libnice-TURN.html#StunUsageTurnCompatibility" title="enum StunUsageTurnCompatibility"><span class="type">StunUsageTurnCompatibility</span></a> compatibility</code></em>);</pre>
@@ -378,7 +378,7 @@ the message</p>
 </tr>
 <tr>
 <td class="parameter_name"><p>relay_addr</p></td>
-<td class="parameter_description"><p>A pointer to a <a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> structure to fill with the relay address
+<td class="parameter_description"><p>A pointer to a <a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> structure to fill with the relay address
 that the TURN server allocated for us</p></td>
 <td class="parameter_annotations"> </td>
 </tr>
@@ -390,7 +390,7 @@ that the TURN server allocated for us</p></td>
 </tr>
 <tr>
 <td class="parameter_name"><p>addr</p></td>
-<td class="parameter_description"><p>A pointer to a <a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> structure to fill with the mapped address
+<td class="parameter_description"><p>A pointer to a <a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> structure to fill with the mapped address
 that the STUN response contains.
 This argument will only be filled if the return value
 of the function is <a class="link" href="libnice-TURN.html#STUN-USAGE-TURN-RETURN-MAPPED-SUCCESS:CAPS"><span class="type">STUN_USAGE_TURN_RETURN_MAPPED_SUCCESS</span></a></p></td>
@@ -404,11 +404,18 @@ of the function is <a class="link" href="libnice-TURN.html#STUN-USAGE-TURN-RETUR
 </tr>
 <tr>
 <td class="parameter_name"><p>alternate_server</p></td>
-<td class="parameter_description"><p>A pointer to a <a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> structure to fill with the
+<td class="parameter_description"><p>A pointer to a <a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> structure to fill with the
 address of an alternate server to which we should send our new STUN
 Allocate request, in case the currently used TURN server is requesting the use
 of an alternate server. This argument will only be filled if the return value
-of the function is <a class="link" href="libnice-TURN.html#STUN-USAGE-TURN-RETURN-ALTERNATE-SERVER:CAPS"><span class="type">STUN_USAGE_TURN_RETURN_ALTERNATE_SERVER</span></a></p></td>
+of the function is <a class="link" href="libnice-TURN.html#STUN-USAGE-TURN-RETURN-ALTERNATE-SERVER:CAPS"><span class="type">STUN_USAGE_TURN_RETURN_ALTERNATE_SERVER</span></a>
+In the case of <em class="parameter"><code>STUN_USAGE_TURN_COMPATIBILITY_OC2007</code></em>
+compatibility, the
+<em class="parameter"><code>alternate_server</code></em>
+could be filled at any time, and should only be considered
+if the request was sent to a different server than the address returned
+in the <em class="parameter"><code>alternate_server</code></em>
+field</p></td>
 <td class="parameter_annotations"> </td>
 </tr>
 <tr>
@@ -756,6 +763,6 @@ to be sent to an alternate server</p>
 </div>
 </div>
 <div class="footer">
-<hr>Generated by GTK-Doc V1.25</div>
+<hr>Generated by GTK-Doc V1.29</div>
 </body>
 </html>
