@@ -3,12 +3,12 @@
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <title>StunMessage: libnice Reference Manual</title>
-<meta name="generator" content="DocBook XSL Stylesheets V1.79.1">
+<meta name="generator" content="DocBook XSL Stylesheets Vsnapshot">
 <link rel="home" href="index.html" title="libnice Reference Manual">
 <link rel="up" href="ch03.html" title="">
 <link rel="prev" href="libnice-StunAgent.html" title="StunAgent">
 <link rel="next" href="libnice-STUN-Constants.html" title="STUN Constants">
-<meta name="generator" content="GTK-Doc V1.25 (XML mode)">
+<meta name="generator" content="GTK-Doc V1.29 (XML mode)">
 <link rel="stylesheet" href="style.css" type="text/css">
 </head>
 <body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF">
@@ -395,7 +395,7 @@ stun_message_init (<em class="parameter"><code><a class="link" href="libnice-Stu
 </div>
 <div class="refsect3">
 <a name="stun-message-init.returns"></a><h4>Returns</h4>
-<p> <a href="/usr/share/gtk-doc/html/glibglib-Standard-Macros.html#TRUE:CAPS"><code class="literal">TRUE</code></a> if the initialization was successful</p>
+<p> <a href="/usr/share/gtk-doc/html/glib/glib-Standard-Macros.html#TRUE:CAPS"><code class="literal">TRUE</code></a> if the initialization was successful</p>
 </div>
 </div>
 <hr>
@@ -644,7 +644,7 @@ The string will be nul-terminated.
 stun_message_find_addr (<em class="parameter"><code>const <a class="link" href="libnice-StunMessage.html#StunMessage" title="struct StunMessage"><span class="type">StunMessage</span></a> *msg</code></em>,
                         <em class="parameter"><code><a class="link" href="libnice-StunMessage.html#StunAttribute" title="enum StunAttribute"><span class="type">StunAttribute</span></a> type</code></em>,
                         <em class="parameter"><code><span class="type">struct sockaddr_storage</span> *addr</code></em>,
-                        <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> *addrlen</code></em>);</pre>
+                        <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> *addrlen</code></em>);</pre>
 <p>Extracts a network address attribute from a STUN message.</p>
 <div class="refsect3">
 <a name="stun-message-find-addr.parameters"></a><h4>Parameters</h4>
@@ -667,7 +667,7 @@ stun_message_find_addr (<em class="parameter"><code>const <a class="link" href="
 </tr>
 <tr>
 <td class="parameter_name"><p>addr</p></td>
-<td class="parameter_description"><p>The <a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> to be filled</p></td>
+<td class="parameter_description"><p>The <a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> to be filled</p></td>
 <td class="parameter_annotations"> </td>
 </tr>
 <tr>
@@ -698,7 +698,7 @@ is too small
 stun_message_find_xor_addr (<em class="parameter"><code>const <a class="link" href="libnice-StunMessage.html#StunMessage" title="struct StunMessage"><span class="type">StunMessage</span></a> *msg</code></em>,
                             <em class="parameter"><code><a class="link" href="libnice-StunMessage.html#StunAttribute" title="enum StunAttribute"><span class="type">StunAttribute</span></a> type</code></em>,
                             <em class="parameter"><code><span class="type">struct sockaddr_storage</span> *addr</code></em>,
-                            <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> *addrlen</code></em>);</pre>
+                            <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> *addrlen</code></em>);</pre>
 <p>Extracts an obfuscated network address attribute from a STUN message.</p>
 <div class="refsect3">
 <a name="stun-message-find-xor-addr.parameters"></a><h4>Parameters</h4>
@@ -721,7 +721,7 @@ stun_message_find_xor_addr (<em class="parameter"><code>const <a class="link" hr
 </tr>
 <tr>
 <td class="parameter_name"><p>addr</p></td>
-<td class="parameter_description"><p>The <a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> to be filled</p></td>
+<td class="parameter_description"><p>The <a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> to be filled</p></td>
 <td class="parameter_annotations"> </td>
 </tr>
 <tr>
@@ -752,7 +752,7 @@ is too small
 stun_message_find_xor_addr_full (<em class="parameter"><code>const <a class="link" href="libnice-StunMessage.html#StunMessage" title="struct StunMessage"><span class="type">StunMessage</span></a> *msg</code></em>,
                                  <em class="parameter"><code><a class="link" href="libnice-StunMessage.html#StunAttribute" title="enum StunAttribute"><span class="type">StunAttribute</span></a> type</code></em>,
                                  <em class="parameter"><code><span class="type">struct sockaddr_storage</span> *addr</code></em>,
-                                 <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> *addrlen</code></em>,
+                                 <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> *addrlen</code></em>,
                                  <em class="parameter"><code><span class="type">uint32_t</span> magic_cookie</code></em>);</pre>
 <p>Extracts an obfuscated network address attribute from a STUN message.</p>
 <div class="refsect3">
@@ -776,7 +776,7 @@ stun_message_find_xor_addr_full (<em class="parameter"><code>const <a class="lin
 </tr>
 <tr>
 <td class="parameter_name"><p>addr</p></td>
-<td class="parameter_description"><p>The <a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> to be filled</p></td>
+<td class="parameter_description"><p>The <a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> to be filled</p></td>
 <td class="parameter_annotations"> </td>
 </tr>
 <tr>
@@ -1090,7 +1090,7 @@ stun_message_append_string (<em class="parameter"><code><a class="link" href="li
 stun_message_append_addr (<em class="parameter"><code><a class="link" href="libnice-StunMessage.html#StunMessage" title="struct StunMessage"><span class="type">StunMessage</span></a> *msg</code></em>,
                           <em class="parameter"><code><a class="link" href="libnice-StunMessage.html#StunAttribute" title="enum StunAttribute"><span class="type">StunAttribute</span></a> type</code></em>,
                           <em class="parameter"><code>const <span class="type">struct sockaddr</span> *addr</code></em>,
-                          <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> addrlen</code></em>);</pre>
+                          <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> addrlen</code></em>);</pre>
 <p>Append a network address attribute to a STUN message</p>
 <div class="refsect3">
 <a name="stun-message-append-addr.parameters"></a><h4>Parameters</h4>
@@ -1113,7 +1113,7 @@ stun_message_append_addr (<em class="parameter"><code><a class="link" href="libn
 </tr>
 <tr>
 <td class="parameter_name"><p>addr</p></td>
-<td class="parameter_description"><p>The <a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> to be append</p></td>
+<td class="parameter_description"><p>The <a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> to be append</p></td>
 <td class="parameter_annotations"> </td>
 </tr>
 <tr>
@@ -1140,7 +1140,7 @@ is too small
 stun_message_append_xor_addr (<em class="parameter"><code><a class="link" href="libnice-StunMessage.html#StunMessage" title="struct StunMessage"><span class="type">StunMessage</span></a> *msg</code></em>,
                               <em class="parameter"><code><a class="link" href="libnice-StunMessage.html#StunAttribute" title="enum StunAttribute"><span class="type">StunAttribute</span></a> type</code></em>,
                               <em class="parameter"><code>const <span class="type">struct sockaddr_storage</span> *addr</code></em>,
-                              <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> addrlen</code></em>);</pre>
+                              <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> addrlen</code></em>);</pre>
 <p>Append an obfuscated network address attribute to a STUN message</p>
 <div class="refsect3">
 <a name="stun-message-append-xor-addr.parameters"></a><h4>Parameters</h4>
@@ -1163,7 +1163,7 @@ stun_message_append_xor_addr (<em class="parameter"><code><a class="link" href="
 </tr>
 <tr>
 <td class="parameter_name"><p>addr</p></td>
-<td class="parameter_description"><p>The <a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> to be append</p></td>
+<td class="parameter_description"><p>The <a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> to be append</p></td>
 <td class="parameter_annotations"> </td>
 </tr>
 <tr>
@@ -1190,7 +1190,7 @@ is too small
 stun_message_append_xor_addr_full (<em class="parameter"><code><a class="link" href="libnice-StunMessage.html#StunMessage" title="struct StunMessage"><span class="type">StunMessage</span></a> *msg</code></em>,
                                    <em class="parameter"><code><a class="link" href="libnice-StunMessage.html#StunAttribute" title="enum StunAttribute"><span class="type">StunAttribute</span></a> type</code></em>,
                                    <em class="parameter"><code>const <span class="type">struct sockaddr_storage</span> *addr</code></em>,
-                                   <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> addrlen</code></em>,
+                                   <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> addrlen</code></em>,
                                    <em class="parameter"><code><span class="type">uint32_t</span> magic_cookie</code></em>);</pre>
 <p>Append an obfuscated network address attribute from a STUN message.</p>
 <div class="refsect3">
@@ -1214,7 +1214,7 @@ stun_message_append_xor_addr_full (<em class="parameter"><code><a class="link" h
 </tr>
 <tr>
 <td class="parameter_name"><p>addr</p></td>
-<td class="parameter_description"><p>The <a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> to be append</p></td>
+<td class="parameter_description"><p>The <a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> to be append</p></td>
 <td class="parameter_annotations"> </td>
 </tr>
 <tr>
@@ -1347,7 +1347,7 @@ definitely do not contain a complete, valid STUN message.</p>
 <tbody>
 <tr>
 <td class="parameter_name"><p>buffers</p></td>
-<td class="parameter_description"><p> array of contiguous
+<td class="parameter_description"><p>array of contiguous
 <a href="libnice-StunMessage.html#StunInputVector"><span class="type">StunInputVectors</span></a> containing already-received message data. </p></td>
 <td class="parameter_annotations"><span class="annotation">[<acronym title="Parameter points to an array of items."><span class="acronym">array</span></acronym> length=n_buffers][<acronym title="Parameter for input. Default is transfer none."><span class="acronym">in</span></acronym> caller-allocated]</span></td>
 </tr>
@@ -1355,7 +1355,7 @@ definitely do not contain a complete, valid STUN message.</p>
 <td class="parameter_name"><p>n_buffers</p></td>
 <td class="parameter_description"><p>number of entries in <em class="parameter"><code>buffers</code></em>
 or if -1 , then buffers is
-terminated by a <a class="link" href="libnice-StunMessage.html#StunInputVector" title="StunInputVector"><span class="type">StunInputVector</span></a> with the buffer pointer being <a href="/usr/share/gtk-doc/html/liboilliboil-liboiljunk.html#NULL:CAPS"><code class="literal">NULL</code></a>.</p></td>
+terminated by a <a class="link" href="libnice-StunMessage.html#StunInputVector" title="StunInputVector"><span class="type">StunInputVector</span></a> with the buffer pointer being <a href="/usr/share/gtk-doc/html/glib/glib-Standard-Macros.html#NULL:CAPS"><code class="literal">NULL</code></a>.</p></td>
 <td class="parameter_annotations"> </td>
 </tr>
 <tr>
@@ -1366,7 +1366,7 @@ terminated by a <a class="link" href="libnice-StunMessage.html#StunInputVector" 
 </tr>
 <tr>
 <td class="parameter_name"><p>has_padding</p></td>
-<td class="parameter_description"><p><a href="/usr/share/gtk-doc/html/glibglib-Standard-Macros.html#TRUE:CAPS"><code class="literal">TRUE</code></a> if attributes should be padded to 4-byte boundaries</p></td>
+<td class="parameter_description"><p><a href="/usr/share/gtk-doc/html/glib/glib-Standard-Macros.html#TRUE:CAPS"><code class="literal">TRUE</code></a> if attributes should be padded to 4-byte boundaries</p></td>
 <td class="parameter_annotations"> </td>
 </tr>
 </tbody>
@@ -1494,7 +1494,7 @@ stun_message_has_attribute (<em class="parameter"><code>const <a class="link" hr
 </div>
 <div class="refsect3">
 <a name="stun-message-has-attribute.returns"></a><h4>Returns</h4>
-<p> <a href="/usr/share/gtk-doc/html/glibglib-Standard-Macros.html#TRUE:CAPS"><code class="literal">TRUE</code></a> if the attribute is found, <a href="/usr/share/gtk-doc/html/glibglib-Standard-Macros.html#FALSE:CAPS"><code class="literal">FALSE</code></a> otherwise</p>
+<p> <a href="/usr/share/gtk-doc/html/glib/glib-Standard-Macros.html#TRUE:CAPS"><code class="literal">TRUE</code></a> if the attribute is found, <a href="/usr/share/gtk-doc/html/glib/glib-Standard-Macros.html#FALSE:CAPS"><code class="literal">FALSE</code></a> otherwise</p>
 </div>
 </div>
 <hr>
@@ -1520,7 +1520,7 @@ stun_message_has_cookie (<em class="parameter"><code>const <a class="link" href=
 </div>
 <div class="refsect3">
 <a name="stun-message-has-cookie.returns"></a><h4>Returns</h4>
-<p> <a href="/usr/share/gtk-doc/html/glibglib-Standard-Macros.html#TRUE:CAPS"><code class="literal">TRUE</code></a> if the cookie is present, <a href="/usr/share/gtk-doc/html/glibglib-Standard-Macros.html#FALSE:CAPS"><code class="literal">FALSE</code></a> otherwise</p>
+<p> <a href="/usr/share/gtk-doc/html/glib/glib-Standard-Macros.html#TRUE:CAPS"><code class="literal">TRUE</code></a> if the cookie is present, <a href="/usr/share/gtk-doc/html/glib/glib-Standard-Macros.html#FALSE:CAPS"><code class="literal">FALSE</code></a> otherwise</p>
 </div>
 </div>
 <hr>
@@ -1547,7 +1547,7 @@ or an optional attribute</p>
 </div>
 <div class="refsect3">
 <a name="stun-optional.returns"></a><h4>Returns</h4>
-<p> <a href="/usr/share/gtk-doc/html/glibglib-Standard-Macros.html#TRUE:CAPS"><code class="literal">TRUE</code></a> if the attribute is an optional one</p>
+<p> <a href="/usr/share/gtk-doc/html/glib/glib-Standard-Macros.html#TRUE:CAPS"><code class="literal">TRUE</code></a> if the attribute is an optional one</p>
 </div>
 </div>
 <hr>
@@ -2207,6 +2207,14 @@ optional attribute as defined by [MS-ICE2]</p>
 </td>
 <td class="enum_member_annotations"> </td>
 </tr>
+<tr>
+<td class="enum_member_name"><p><a name="STUN-ATTRIBUTE-NOMINATION:CAPS"></a>STUN_ATTRIBUTE_NOMINATION</p></td>
+<td class="enum_member_description">
+<p>The NOMINATION attribute as defined by
+draft-thatcher-ice-renomination-00 and deployed in Google Chrome</p>
+</td>
+<td class="enum_member_annotations"> </td>
+</tr>
 </tbody>
 </table></div>
 </div>
@@ -2480,7 +2488,7 @@ data to validate is not a valid STUN message</p>
 for vectored I/O: typically an array of <a href="libnice-StunMessage.html#StunInputVector"><span class="type">StunInputVectors</span></a> is passed to
 functions, providing multiple buffers which store logically contiguous
 received data.</p>
-<p>This is guaranteed to be layed out identically in memory to <a href="/usr/share/gtk-doc/html/gioGSocket.html#GInputVector"><span class="type">GInputVector</span></a>.</p>
+<p>This is guaranteed to be layed out identically in memory to <a href="/usr/share/gtk-doc/html/gio/GSocket.html#GInputVector"><span class="type">GInputVector</span></a>.</p>
 <div class="refsect3">
 <a name="StunInputVector.members"></a><h4>Members</h4>
 <div class="informaltable"><table class="informaltable" width="100%" border="0">
@@ -2513,6 +2521,6 @@ received data.</p>
 </div>
 </div>
 <div class="footer">
-<hr>Generated by GTK-Doc V1.25</div>
+<hr>Generated by GTK-Doc V1.29</div>
 </body>
 </html>

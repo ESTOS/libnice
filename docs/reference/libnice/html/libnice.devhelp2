@@ -44,6 +44,8 @@
       <sub name="Index of new symbols in 0.1.6" link="ix11.html"/>
       <sub name="Index of new symbols in 0.1.8" link="ix12.html"/>
       <sub name="Index of new symbols in 0.1.14" link="ix13.html"/>
+      <sub name="Index of new symbols in 0.1.15" link="ix14.html"/>
+      <sub name="Index of new symbols in 0.1.16" link="ix15.html"/>
       <sub name="Annotation Glossary" link="annotation-glossary.html"/>
     </sub>
   </chapters>
@@ -51,6 +53,7 @@
     <keyword type="function" name="NiceAgentRecvFunc ()" link="NiceAgent.html#NiceAgentRecvFunc"/>
     <keyword type="function" name="nice_agent_new ()" link="NiceAgent.html#nice-agent-new"/>
     <keyword type="function" name="nice_agent_new_reliable ()" link="NiceAgent.html#nice-agent-new-reliable" since="0.0.11"/>
+    <keyword type="function" name="nice_agent_new_full ()" link="NiceAgent.html#nice-agent-new-full" since="0.1.15"/>
     <keyword type="function" name="nice_agent_add_local_address ()" link="NiceAgent.html#nice-agent-add-local-address"/>
     <keyword type="function" name="nice_agent_set_port_range ()" link="NiceAgent.html#nice-agent-set-port-range"/>
     <keyword type="function" name="nice_agent_add_stream ()" link="NiceAgent.html#nice-agent-add-stream"/>
@@ -65,6 +68,7 @@
     <keyword type="function" name="nice_agent_get_remote_candidates ()" link="NiceAgent.html#nice-agent-get-remote-candidates"/>
     <keyword type="function" name="nice_agent_get_local_candidates ()" link="NiceAgent.html#nice-agent-get-local-candidates"/>
     <keyword type="function" name="nice_agent_get_selected_pair ()" link="NiceAgent.html#nice-agent-get-selected-pair"/>
+    <keyword type="function" name="nice_agent_peer_candidate_gathering_done ()" link="NiceAgent.html#nice-agent-peer-candidate-gathering-done" since="0.1.16"/>
     <keyword type="function" name="nice_agent_send ()" link="NiceAgent.html#nice-agent-send"/>
     <keyword type="function" name="nice_agent_send_messages_nonblocking ()" link="NiceAgent.html#nice-agent-send-messages-nonblocking" since="0.1.5"/>
     <keyword type="function" name="nice_agent_recv ()" link="NiceAgent.html#nice-agent-recv" since="0.1.5"/>
@@ -90,34 +94,43 @@
     <keyword type="function" name="nice_agent_get_io_stream ()" link="NiceAgent.html#nice-agent-get-io-stream" since="0.1.5"/>
     <keyword type="function" name="nice_agent_get_selected_socket ()" link="NiceAgent.html#nice-agent-get-selected-socket" since="0.1.5"/>
     <keyword type="function" name="nice_agent_get_component_state ()" link="NiceAgent.html#nice-agent-get-component-state" since="0.1.8"/>
+    <keyword type="function" name="nice_agent_close_async ()" link="NiceAgent.html#nice-agent-close-async" since="0.1.16"/>
     <keyword type="function" name="nice_component_state_to_string ()" link="NiceAgent.html#nice-component-state-to-string" since="0.1.6"/>
     <keyword type="struct" name="NiceAgent" link="NiceAgent.html#NiceAgent-struct"/>
     <keyword type="enum" name="enum NiceComponentState" link="NiceAgent.html#NiceComponentState"/>
     <keyword type="enum" name="enum NiceComponentType" link="NiceAgent.html#NiceComponentType"/>
     <keyword type="enum" name="enum NiceProxyType" link="NiceAgent.html#NiceProxyType" since="0.0.4"/>
+    <keyword type="enum" name="enum NiceNominationMode" link="NiceAgent.html#NiceNominationMode" since="0.1.15"/>
     <keyword type="enum" name="enum NiceCompatibility" link="NiceAgent.html#NiceCompatibility"/>
     <keyword type="struct" name="NiceInputMessage" link="NiceAgent.html#NiceInputMessage" since="0.1.5"/>
     <keyword type="struct" name="NiceOutputMessage" link="NiceAgent.html#NiceOutputMessage" since="0.1.5"/>
     <keyword type="macro" name="NICE_AGENT_MAX_REMOTE_CANDIDATES" link="NiceAgent.html#NICE-AGENT-MAX-REMOTE-CANDIDATES:CAPS"/>
+    <keyword type="enum" name="enum NiceAgentOption" link="NiceAgent.html#NiceAgentOption" since="0.1.15"/>
     <keyword type="property" name="The “bytestream-tcp” property" link="NiceAgent.html#NiceAgent--bytestream-tcp"/>
     <keyword type="property" name="The “compatibility” property" link="NiceAgent.html#NiceAgent--compatibility"/>
     <keyword type="property" name="The “controlling-mode” property" link="NiceAgent.html#NiceAgent--controlling-mode"/>
     <keyword type="property" name="The “force-relay” property" link="NiceAgent.html#NiceAgent--force-relay"/>
     <keyword type="property" name="The “full-mode” property" link="NiceAgent.html#NiceAgent--full-mode"/>
     <keyword type="property" name="The “ice-tcp” property" link="NiceAgent.html#NiceAgent--ice-tcp"/>
+    <keyword type="property" name="The “ice-trickle” property" link="NiceAgent.html#NiceAgent--ice-trickle"/>
     <keyword type="property" name="The “ice-udp” property" link="NiceAgent.html#NiceAgent--ice-udp"/>
     <keyword type="property" name="The “keepalive-conncheck” property" link="NiceAgent.html#NiceAgent--keepalive-conncheck"/>
     <keyword type="property" name="The “main-context” property" link="NiceAgent.html#NiceAgent--main-context"/>
     <keyword type="property" name="The “max-connectivity-checks” property" link="NiceAgent.html#NiceAgent--max-connectivity-checks"/>
+    <keyword type="property" name="The “nomination-mode” property" link="NiceAgent.html#NiceAgent--nomination-mode"/>
     <keyword type="property" name="The “proxy-ip” property" link="NiceAgent.html#NiceAgent--proxy-ip"/>
     <keyword type="property" name="The “proxy-password” property" link="NiceAgent.html#NiceAgent--proxy-password"/>
     <keyword type="property" name="The “proxy-port” property" link="NiceAgent.html#NiceAgent--proxy-port"/>
     <keyword type="property" name="The “proxy-type” property" link="NiceAgent.html#NiceAgent--proxy-type"/>
     <keyword type="property" name="The “proxy-username” property" link="NiceAgent.html#NiceAgent--proxy-username"/>
     <keyword type="property" name="The “reliable” property" link="NiceAgent.html#NiceAgent--reliable"/>
+    <keyword type="property" name="The “stun-initial-timeout” property" link="NiceAgent.html#NiceAgent--stun-initial-timeout"/>
+    <keyword type="property" name="The “stun-max-retransmissions” property" link="NiceAgent.html#NiceAgent--stun-max-retransmissions"/>
     <keyword type="property" name="The “stun-pacing-timer” property" link="NiceAgent.html#NiceAgent--stun-pacing-timer"/>
+    <keyword type="property" name="The “stun-reliable-timeout” property" link="NiceAgent.html#NiceAgent--stun-reliable-timeout"/>
     <keyword type="property" name="The “stun-server” property" link="NiceAgent.html#NiceAgent--stun-server"/>
     <keyword type="property" name="The “stun-server-port” property" link="NiceAgent.html#NiceAgent--stun-server-port"/>
+    <keyword type="property" name="The “support-renomination” property" link="NiceAgent.html#NiceAgent--support-renomination"/>
     <keyword type="property" name="The “upnp” property" link="NiceAgent.html#NiceAgent--upnp"/>
     <keyword type="property" name="The “upnp-timeout” property" link="NiceAgent.html#NiceAgent--upnp-timeout"/>
     <keyword type="signal" name="The “candidate-gathering-done” signal" link="NiceAgent.html#NiceAgent-candidate-gathering-done"/>
@@ -153,6 +166,7 @@
     <keyword type="function" name="nice_candidate_new ()" link="NiceCandidate.html#nice-candidate-new"/>
     <keyword type="function" name="nice_candidate_free ()" link="NiceCandidate.html#nice-candidate-free"/>
     <keyword type="function" name="nice_candidate_copy ()" link="NiceCandidate.html#nice-candidate-copy"/>
+    <keyword type="function" name="nice_candidate_equal_target ()" link="NiceCandidate.html#nice-candidate-equal-target" since="0.1.15"/>
     <keyword type="struct" name="struct NiceCandidate" link="NiceCandidate.html#NiceCandidate-struct"/>
     <keyword type="enum" name="enum NiceCandidateType" link="NiceCandidate.html#NiceCandidateType"/>
     <keyword type="enum" name="enum NiceCandidateTransport" link="NiceCandidate.html#NiceCandidateTransport"/>
@@ -322,6 +336,8 @@
     <keyword type="constant" name="NICE_PROXY_TYPE_SOCKS5" link="NiceAgent.html#NICE-PROXY-TYPE-SOCKS5:CAPS"/>
     <keyword type="constant" name="NICE_PROXY_TYPE_HTTP" link="NiceAgent.html#NICE-PROXY-TYPE-HTTP:CAPS"/>
     <keyword type="constant" name="NICE_PROXY_TYPE_LAST" link="NiceAgent.html#NICE-PROXY-TYPE-LAST:CAPS"/>
+    <keyword type="constant" name="NICE_NOMINATION_MODE_REGULAR" link="NiceAgent.html#NICE-NOMINATION-MODE-REGULAR:CAPS"/>
+    <keyword type="constant" name="NICE_NOMINATION_MODE_AGGRESSIVE" link="NiceAgent.html#NICE-NOMINATION-MODE-AGGRESSIVE:CAPS"/>
     <keyword type="constant" name="NICE_COMPATIBILITY_RFC5245" link="NiceAgent.html#NICE-COMPATIBILITY-RFC5245:CAPS"/>
     <keyword type="constant" name="NICE_COMPATIBILITY_DRAFT19" link="NiceAgent.html#NICE-COMPATIBILITY-DRAFT19:CAPS"/>
     <keyword type="constant" name="NICE_COMPATIBILITY_GOOGLE" link="NiceAgent.html#NICE-COMPATIBILITY-GOOGLE:CAPS"/>
@@ -330,6 +346,11 @@
     <keyword type="constant" name="NICE_COMPATIBILITY_OC2007" link="NiceAgent.html#NICE-COMPATIBILITY-OC2007:CAPS"/>
     <keyword type="constant" name="NICE_COMPATIBILITY_OC2007R2" link="NiceAgent.html#NICE-COMPATIBILITY-OC2007R2:CAPS"/>
     <keyword type="constant" name="NICE_COMPATIBILITY_LAST" link="NiceAgent.html#NICE-COMPATIBILITY-LAST:CAPS"/>
+    <keyword type="constant" name="NICE_AGENT_OPTION_REGULAR_NOMINATION" link="NiceAgent.html#NICE-AGENT-OPTION-REGULAR-NOMINATION:CAPS"/>
+    <keyword type="constant" name="NICE_AGENT_OPTION_RELIABLE" link="NiceAgent.html#NICE-AGENT-OPTION-RELIABLE:CAPS"/>
+    <keyword type="constant" name="NICE_AGENT_OPTION_LITE_MODE" link="NiceAgent.html#NICE-AGENT-OPTION-LITE-MODE:CAPS"/>
+    <keyword type="constant" name="NICE_AGENT_OPTION_ICE_TRICKLE" link="NiceAgent.html#NICE-AGENT-OPTION-ICE-TRICKLE:CAPS"/>
+    <keyword type="constant" name="NICE_AGENT_OPTION_SUPPORT_RENOMINATION" link="NiceAgent.html#NICE-AGENT-OPTION-SUPPORT-RENOMINATION:CAPS"/>
     <keyword type="constant" name="NICE_CANDIDATE_TYPE_HOST" link="NiceCandidate.html#NICE-CANDIDATE-TYPE-HOST:CAPS"/>
     <keyword type="constant" name="NICE_CANDIDATE_TYPE_SERVER_REFLEXIVE" link="NiceCandidate.html#NICE-CANDIDATE-TYPE-SERVER-REFLEXIVE:CAPS"/>
     <keyword type="constant" name="NICE_CANDIDATE_TYPE_PEER_REFLEXIVE" link="NiceCandidate.html#NICE-CANDIDATE-TYPE-PEER-REFLEXIVE:CAPS"/>
@@ -431,6 +452,7 @@
     <keyword type="constant" name="STUN_ATTRIBUTE_MS_SEQUENCE_NUMBER" link="libnice-StunMessage.html#STUN-ATTRIBUTE-MS-SEQUENCE-NUMBER:CAPS"/>
     <keyword type="constant" name="STUN_ATTRIBUTE_CANDIDATE_IDENTIFIER" link="libnice-StunMessage.html#STUN-ATTRIBUTE-CANDIDATE-IDENTIFIER:CAPS"/>
     <keyword type="constant" name="STUN_ATTRIBUTE_MS_IMPLEMENTATION_VERSION" link="libnice-StunMessage.html#STUN-ATTRIBUTE-MS-IMPLEMENTATION-VERSION:CAPS"/>
+    <keyword type="constant" name="STUN_ATTRIBUTE_NOMINATION" link="libnice-StunMessage.html#STUN-ATTRIBUTE-NOMINATION:CAPS"/>
     <keyword type="constant" name="STUN_ERROR_TRY_ALTERNATE" link="libnice-StunMessage.html#STUN-ERROR-TRY-ALTERNATE:CAPS"/>
     <keyword type="constant" name="STUN_ERROR_BAD_REQUEST" link="libnice-StunMessage.html#STUN-ERROR-BAD-REQUEST:CAPS"/>
     <keyword type="constant" name="STUN_ERROR_UNAUTHORIZED" link="libnice-StunMessage.html#STUN-ERROR-UNAUTHORIZED:CAPS"/>
@@ -492,17 +514,17 @@
     <keyword type="constant" name="STUN_USAGE_TIMER_RETURN_SUCCESS" link="libnice-Timer.html#STUN-USAGE-TIMER-RETURN-SUCCESS:CAPS"/>
     <keyword type="constant" name="STUN_USAGE_TIMER_RETURN_RETRANSMIT" link="libnice-Timer.html#STUN-USAGE-TIMER-RETURN-RETRANSMIT:CAPS"/>
     <keyword type="constant" name="STUN_USAGE_TIMER_RETURN_TIMEOUT" link="libnice-Timer.html#STUN-USAGE-TIMER-RETURN-TIMEOUT:CAPS"/>
-    <keyword type="constant" name="TCP_LISTEN" link="libnice-Pseudo-TCP-Socket.html#TCP-LISTEN:CAPS"/>
-    <keyword type="constant" name="TCP_SYN_SENT" link="libnice-Pseudo-TCP-Socket.html#TCP-SYN-SENT:CAPS"/>
-    <keyword type="constant" name="TCP_SYN_RECEIVED" link="libnice-Pseudo-TCP-Socket.html#TCP-SYN-RECEIVED:CAPS"/>
-    <keyword type="constant" name="TCP_ESTABLISHED" link="libnice-Pseudo-TCP-Socket.html#TCP-ESTABLISHED:CAPS"/>
-    <keyword type="constant" name="TCP_CLOSED" link="libnice-Pseudo-TCP-Socket.html#TCP-CLOSED:CAPS"/>
-    <keyword type="constant" name="TCP_FIN_WAIT_1" link="libnice-Pseudo-TCP-Socket.html#TCP-FIN-WAIT-1:CAPS"/>
-    <keyword type="constant" name="TCP_FIN_WAIT_2" link="libnice-Pseudo-TCP-Socket.html#TCP-FIN-WAIT-2:CAPS"/>
-    <keyword type="constant" name="TCP_CLOSING" link="libnice-Pseudo-TCP-Socket.html#TCP-CLOSING:CAPS"/>
-    <keyword type="constant" name="TCP_TIME_WAIT" link="libnice-Pseudo-TCP-Socket.html#TCP-TIME-WAIT:CAPS"/>
-    <keyword type="constant" name="TCP_CLOSE_WAIT" link="libnice-Pseudo-TCP-Socket.html#TCP-CLOSE-WAIT:CAPS"/>
-    <keyword type="constant" name="TCP_LAST_ACK" link="libnice-Pseudo-TCP-Socket.html#TCP-LAST-ACK:CAPS"/>
+    <keyword type="constant" name="PSEUDO_TCP_LISTEN" link="libnice-Pseudo-TCP-Socket.html#PSEUDO-TCP-LISTEN:CAPS"/>
+    <keyword type="constant" name="PSEUDO_TCP_SYN_SENT" link="libnice-Pseudo-TCP-Socket.html#PSEUDO-TCP-SYN-SENT:CAPS"/>
+    <keyword type="constant" name="PSEUDO_TCP_SYN_RECEIVED" link="libnice-Pseudo-TCP-Socket.html#PSEUDO-TCP-SYN-RECEIVED:CAPS"/>
+    <keyword type="constant" name="PSEUDO_TCP_ESTABLISHED" link="libnice-Pseudo-TCP-Socket.html#PSEUDO-TCP-ESTABLISHED:CAPS"/>
+    <keyword type="constant" name="PSEUDO_TCP_CLOSED" link="libnice-Pseudo-TCP-Socket.html#PSEUDO-TCP-CLOSED:CAPS"/>
+    <keyword type="constant" name="PSEUDO_TCP_FIN_WAIT_1" link="libnice-Pseudo-TCP-Socket.html#PSEUDO-TCP-FIN-WAIT-1:CAPS"/>
+    <keyword type="constant" name="PSEUDO_TCP_FIN_WAIT_2" link="libnice-Pseudo-TCP-Socket.html#PSEUDO-TCP-FIN-WAIT-2:CAPS"/>
+    <keyword type="constant" name="PSEUDO_TCP_CLOSING" link="libnice-Pseudo-TCP-Socket.html#PSEUDO-TCP-CLOSING:CAPS"/>
+    <keyword type="constant" name="PSEUDO_TCP_TIME_WAIT" link="libnice-Pseudo-TCP-Socket.html#PSEUDO-TCP-TIME-WAIT:CAPS"/>
+    <keyword type="constant" name="PSEUDO_TCP_CLOSE_WAIT" link="libnice-Pseudo-TCP-Socket.html#PSEUDO-TCP-CLOSE-WAIT:CAPS"/>
+    <keyword type="constant" name="PSEUDO_TCP_LAST_ACK" link="libnice-Pseudo-TCP-Socket.html#PSEUDO-TCP-LAST-ACK:CAPS"/>
     <keyword type="constant" name="WR_SUCCESS" link="libnice-Pseudo-TCP-Socket.html#WR-SUCCESS:CAPS"/>
     <keyword type="constant" name="WR_TOO_LARGE" link="libnice-Pseudo-TCP-Socket.html#WR-TOO-LARGE:CAPS"/>
     <keyword type="constant" name="WR_FAIL" link="libnice-Pseudo-TCP-Socket.html#WR-FAIL:CAPS"/>

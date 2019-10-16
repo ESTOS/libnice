@@ -3,12 +3,12 @@
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <title>Bind: libnice Reference Manual</title>
-<meta name="generator" content="DocBook XSL Stylesheets V1.79.1">
+<meta name="generator" content="DocBook XSL Stylesheets Vsnapshot">
 <link rel="home" href="index.html" title="libnice Reference Manual">
 <link rel="up" href="ch04.html" title="STUN usages">
 <link rel="prev" href="ch04.html" title="STUN usages">
 <link rel="next" href="libnice-ICE.html" title="ICE">
-<meta name="generator" content="GTK-Doc V1.25 (XML mode)">
+<meta name="generator" content="GTK-Doc V1.29 (XML mode)">
 <link rel="stylesheet" href="style.css" type="text/css">
 </head>
 <body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF">
@@ -162,9 +162,9 @@ stun_usage_bind_create (<em class="parameter"><code><a class="link" href="libnic
 <pre class="programlisting"><a class="link" href="libnice-Bind.html#StunUsageBindReturn" title="enum StunUsageBindReturn"><span class="returnvalue">StunUsageBindReturn</span></a>
 stun_usage_bind_process (<em class="parameter"><code><a class="link" href="libnice-StunMessage.html#StunMessage" title="struct StunMessage"><span class="type">StunMessage</span></a> *msg</code></em>,
                          <em class="parameter"><code><span class="type">struct sockaddr</span> *addr</code></em>,
-                         <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> *addrlen</code></em>,
+                         <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> *addrlen</code></em>,
                          <em class="parameter"><code><span class="type">struct sockaddr</span> *alternate_server</code></em>,
-                         <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> *alternate_server_len</code></em>);</pre>
+                         <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> *alternate_server_len</code></em>);</pre>
 <p>Process a STUN binding response and extracts the mapped address from the STUN
 message. Also checks for the ALTERNATE-SERVER attribute.</p>
 <div class="refsect3">
@@ -183,7 +183,7 @@ message. Also checks for the ALTERNATE-SERVER attribute.</p>
 </tr>
 <tr>
 <td class="parameter_name"><p>addr</p></td>
-<td class="parameter_description"><p>A pointer to a <a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> structure to fill with the mapped address
+<td class="parameter_description"><p>A pointer to a <a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> structure to fill with the mapped address
 that the STUN server gives us</p></td>
 <td class="parameter_annotations"> </td>
 </tr>
@@ -197,7 +197,7 @@ address and will be set to the actual length of the socket address.</p></td>
 </tr>
 <tr>
 <td class="parameter_name"><p>alternate_server</p></td>
-<td class="parameter_description"><p>A pointer to a <a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> structure to fill with the
+<td class="parameter_description"><p>A pointer to a <a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> structure to fill with the
 address of an alternate server to which we should send our new STUN
 binding request, in case the currently used STUN server is requesting the use
 of an alternate server. This argument will only be filled if the return value
@@ -276,9 +276,9 @@ and it can only be used as a keepalive message.</p>
 <a name="stun-usage-bind-run"></a><h3>stun_usage_bind_run ()</h3>
 <pre class="programlisting"><a class="link" href="libnice-Bind.html#StunUsageBindReturn" title="enum StunUsageBindReturn"><span class="returnvalue">StunUsageBindReturn</span></a>
 stun_usage_bind_run (<em class="parameter"><code>const <span class="type">struct sockaddr</span> *srv</code></em>,
-                     <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> srvlen</code></em>,
+                     <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> srvlen</code></em>,
                      <em class="parameter"><code><span class="type">struct sockaddr_storage</span> *addr</code></em>,
-                     <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> *addrlen</code></em>);</pre>
+                     <em class="parameter"><code><a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#socklen-t"><span class="type">socklen_t</span></a> *addrlen</code></em>);</pre>
 <p>This is a convenience function that will do a synchronous Binding request to
 a server and wait for its answer. It will create the socket transports and
 use the <a class="link" href="libnice-Timer.html#StunTimer" title="StunTimer"><span class="type">StunTimer</span></a> usage to send the request and handle the response.</p>
@@ -293,7 +293,7 @@ use the <a class="link" href="libnice-Timer.html#StunTimer" title="StunTimer"><s
 <tbody>
 <tr>
 <td class="parameter_name"><p>srv</p></td>
-<td class="parameter_description"><p>A pointer to the <a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> structure representing the STUN server's
+<td class="parameter_description"><p>A pointer to the <a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> structure representing the STUN server's
 address</p></td>
 <td class="parameter_annotations"> </td>
 </tr>
@@ -305,7 +305,7 @@ address</p></td>
 </tr>
 <tr>
 <td class="parameter_name"><p>addr</p></td>
-<td class="parameter_description"><p>A pointer to a <a href="/usr/share/gtk-doc/html/camelcamel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> structure to fill with the mapped address
+<td class="parameter_description"><p>A pointer to a <a href="/usr/share/gtk-doc/html/camel/camel-camel-net-utils.html#sockaddr"><span class="type">sockaddr</span></a> structure to fill with the mapped address
 that the STUN server gives us</p></td>
 <td class="parameter_annotations"> </td>
 </tr>
@@ -385,6 +385,6 @@ timed out.</p>
 </div>
 </div>
 <div class="footer">
-<hr>Generated by GTK-Doc V1.25</div>
+<hr>Generated by GTK-Doc V1.29</div>
 </body>
 </html>
