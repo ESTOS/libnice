@@ -118,6 +118,7 @@ enum
   PROP_STUN_INITIAL_TIMEOUT,
   PROP_STUN_RELIABLE_TIMEOUT,
   PROP_NOMINATION_MODE,
+  PROP_FORCE_NOMINATION_MODE,
 };
 
 
@@ -463,6 +464,21 @@ nice_agent_class_init (NiceAgentClass *klass)
          "the selection of valid pairs to be used upstream",
          NICE_TYPE_NOMINATION_MODE, NICE_NOMINATION_MODE_AGGRESSIVE,
          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY));
+
+  /**
+   * NiceAgent:force-nomination-mode:
+   *
+   * Avoid switching the nomination mode regardless the compatibility
+   *
+   * Since: 0.1.15.1??
+   */
+  g_object_class_install_property (gobject_class, PROP_FORCE_NOMINATION_MODE,
+      g_param_spec_boolean (
+        "force-nomination-mode",
+        "force ICE nomination mode",
+        "if force_nomination_mode==TRUE then dont switch the mode",
+        FALSE, /* use full mode by default */
+        G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
 
   /**
    * NiceAgent:proxy-ip:
@@ -1164,6 +1180,7 @@ nice_agent_init (NiceAgent *agent)
   agent->saved_controlling_mode = TRUE;
   agent->max_conn_checks = NICE_AGENT_MAX_CONNECTIVITY_CHECKS_DEFAULT;
   agent->nomination_mode = NICE_NOMINATION_MODE_AGGRESSIVE;
+  agent->force_nomination_mode = FALSE;
 
   agent->discovery_list = NULL;
   agent->discovery_unsched_items = 0;
@@ -1280,6 +1297,10 @@ nice_agent_get_property (
 
     case PROP_NOMINATION_MODE:
       g_value_set_enum (value, agent->nomination_mode);
+      break;
+
+    case PROP_FORCE_NOMINATION_MODE:
+      g_value_set_boolean (value, agent->force_nomination_mode);
       break;
 
     case PROP_PROXY_IP:
@@ -1488,6 +1509,10 @@ nice_agent_set_property (
 
     case PROP_NOMINATION_MODE:
       agent->nomination_mode = g_value_get_enum (value);
+      break;
+
+    case PROP_FORCE_NOMINATION_MODE:
+      agent->force_nomination_mode = g_value_get_boolean (value);
       break;
 
     case PROP_PROXY_IP:
@@ -3451,7 +3476,8 @@ static gboolean priv_add_remote_candidate (
           username, password, priority);
     }
 
-    if (NICE_AGENT_IS_COMPATIBLE_WITH_RFC5245_OR_OC2007R2 (agent)) {
+    if (NICE_AGENT_IS_COMPATIBLE_WITH_RFC5245_OR_OC2007R2 (agent) &&
+      agent->force_nomination_mode != TRUE) {
       /* note:  If there are TCP candidates for a media stream,
        * a controlling agent MUST use the regular selection algorithm,
        * RFC 6544, sect 8, "Concluding ICE Processing"
