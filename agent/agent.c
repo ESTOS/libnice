@@ -5332,7 +5332,8 @@ component_io_cb (GSocket *gsocket, GIOCondition condition, gpointer user_data)
       } else if (retval == RECV_ERROR) {
         /* Other error. */
         nice_debug ("%s: %p: error receiving message", G_STRFUNC, agent);
-        remove_source = TRUE;
+        // RTCSP-1297 dont close the existing TURN Socket because we get an ICMP ttl on a not working host binding req
+        // remove_source = TRUE;
         break;
       }
 
