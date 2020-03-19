@@ -9,13 +9,41 @@ External repositories
 Kurento changes from Debian maintainer
 ======================================
 
-- Use 'debhelper (>= 9)': Debian packager uses version 10, but that
-  is only available in 16.04 as backport. Default version for both 16.04
-  and 14.04 is 9.
+* Use 'debhelper (>= 9)': The Debian packagers use version 10, but that is only
+  available by default in 18.04. Default for both 16.04 and 18.04 is version 9.
   Also changed in file 'debian/compat'.
 
-- dh-autoreconf: debhelper 10 already depends on dh-autoreconf, but version 9
-  doesn't.
+* dh_autoreconf: libnice expects that the script autogen.sh is run before trying
+  to build. The Debian maintainers keep committed all the files that get
+  generated. We don't keep those files, instead use 'override_dh_autoreconf' to
+  generate them by dynamically calling autogen.sh upon package creation.
+
+  - To use dh_autoreconf, debhelper 9 requires adding the flag
+    'dh --with autoreconf'. This isn't needed any more with debhelper 10. Also,
+    in Ubuntu 16.04 we need to depend on package 'dh-autoreconf'.
+
+  - dh_autoreconf "NOCONFIGURE=1 ./autogen.sh": by default, libnice's autogen.sh
+    runs autoreconf *and* ./configure. But debhelper will run ./configure in the
+    next step, with dh_auto_configure. So using NOCONFIGURE=1 we can avoid
+    running ./configure too early.
+
+* dh_auto_configure:
+
+  - --enable-gtk-doc: this flag is enabled by libnice CI scripts
+    (.gitlab-ci.yml), and is required to generate doc files that will later be
+    packaged into 'libnice-doc'.
+
+  - --disable-assert: disables aborting whenever an assert doesn't pass in the
+    libnice code. This has been a source of crashes in Kurento, when a libnice
+    function fails checking correct state (or any other assert).
+    What this does in ./configure is enable compilation with NDEBUG=1.
+
+  - --with-gstreamer-1.5: Needed to generate GStreamer packages that can be used
+    with Kurento fork of GStreamer.
+
+  - --with-ignored-network-interface-prefix=docker: Use this flag to skip all
+    local interfaces that belong to Docker containers, when Kurento runs in a
+    host machine that runs the Docker daemon.
 
 
 
@@ -32,9 +60,6 @@ This mechanism is also working in Ubuntu, but only if the package
 'pkg-create-dbgsym' is already installed at build time, so we need to install
 it in our Docker build images.
 
-
-
-Note for migration to Ubuntu 18.04
-----------------------------------
-
-Looks like new debhelper in 18.04 LTS already does automatically what pkg-create-dbgsym was doing before, so pkg-create-dbgsym is not needed any more.
+Note: this applied only to Ubuntu 16.04 and earlier. Looks like new debhelper 10
+in 18.04 LTS already does automatically what pkg-create-dbgsym was doing before,
+so pkg-create-dbgsym is not needed any more.
