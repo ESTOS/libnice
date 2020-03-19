@@ -75,7 +75,7 @@ typedef struct _StunTransaction StunTransaction;
 
 struct _StunTransaction
 {
-  GTimeVal next_tick;       /* next tick timestamp */
+  gint64 next_tick;       /* next tick timestamp */
   StunTimer timer;
   uint8_t buffer[STUN_MAX_MESSAGE_SIZE_IPV6];
   StunMessage message;
@@ -121,5 +121,8 @@ conn_check_prune_socket (NiceAgent *agent, NiceStream *stream, NiceComponent *co
 guint32 ensure_unique_priority (NiceStream *stream, NiceComponent *component,
     guint32 priority);
 void recalculate_pair_priorities (NiceAgent *agent);
+void conn_check_update_selected_pair (NiceAgent *agent,
+    NiceComponent *component, CandidateCheckPair *pair);
+
 
 #endif /*_NICE_CONNCHECK_H */

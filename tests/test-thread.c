@@ -160,7 +160,7 @@ static void cb_nice_recv (NiceAgent *agent, guint stream_id, guint component_id,
   if (count_val == 10)
     return;
 
-  g_assert (len == 10);
+  g_assert_cmpuint (len, ==, 10);
 
   memset (data, count_val + '1', 10);
 
@@ -238,7 +238,7 @@ int main (void)
   g_object_set (G_OBJECT (ragent), "upnp", FALSE, NULL);
 
   /* step: add a timer to catch state changes triggered by signals */
-  g_timeout_add (30000, timer_cb, NULL);
+  g_timeout_add_seconds (150, timer_cb, NULL);
 
   /* step: specify which local interface to use */
   if (!nice_address_set_from_string (&baseaddr, "127.0.0.1"))
