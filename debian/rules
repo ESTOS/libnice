@@ -13,6 +13,7 @@ override_dh_auto_configure:
 	                     --with-gstreamer \
 	                     --enable-introspection \
 	                     \
+	                     --disable-assert \
 	                     --enable-gtk-doc \
 	                     --with-gstreamer-1.5 \
 	                     --with-ignored-network-interface-prefix=docker
