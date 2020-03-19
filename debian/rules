@@ -15,8 +15,7 @@ override_dh_auto_configure:
 	                     \
 	                     --disable-assert \
 	                     --enable-gtk-doc \
-	                     --with-gstreamer-1.5 \
-	                     --with-ignored-network-interface-prefix=docker
+	                     --with-gstreamer-1.5
 
 override_dh_install:
 	dh_install --list-missing
