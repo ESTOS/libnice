@@ -156,6 +156,7 @@ struct _NiceAgent
   guint stun_initial_timeout;     /* property: stun initial timeout, RTO */
   guint stun_reliable_timeout;    /* property: stun reliable timeout */
   NiceNominationMode nomination_mode; /* property: Nomination mode */
+  gboolean support_renomination;  /* property: support RENOMINATION STUN attribute */
 
   GSList *local_addresses;        /* list of NiceAddresses for local
 				     interfaces */
@@ -190,6 +191,7 @@ struct _NiceAgent
   guint16 rfc4571_expecting_length;
   gboolean use_ice_udp;
   gboolean use_ice_tcp;
+  gboolean use_ice_trickle;
 
   guint conncheck_timer_grace_period; /* ongoing delay before timer stop */
   gboolean controlling_mode;          /* controlling mode used by the
@@ -277,6 +279,9 @@ compact_output_message (const NiceOutputMessage *message, gsize *buffer_length);
 gsize
 output_message_get_size (const NiceOutputMessage *message);
 
+gsize
+input_message_get_size (const NiceInputMessage *message);
+
 gssize agent_socket_send (NiceSocket *sock, const NiceAddress *addr, gsize len,
     const gchar *buf);
 
@@ -321,6 +326,14 @@ gboolean nice_debug_is_enabled (void);
 gboolean nice_debug_is_verbose (void);
 void nice_debug (const char *fmt, ...) G_GNUC_PRINTF (1, 2);
 void nice_debug_verbose (const char *fmt, ...) G_GNUC_PRINTF (1, 2);
+#endif
+
+#if !GLIB_CHECK_VERSION(2, 59, 0)
+#if __GNUC__ > 6
+#define G_GNUC_FALLTHROUGH __attribute__((fallthrough))
+#else
+#define G_GNUC_FALLTHROUGH
+#endif /* __GNUC__ */
 #endif
 
 #endif /*_NICE_AGENT_PRIV_H */

@@ -362,7 +362,7 @@ socket_recv_messages (NiceSocket *sock,
     guint f_buffer_len = priv->fragment_buffer->len;
 
     for (i = 0; i < n_recv_messages && f_buffer_len >= sizeof (guint16); ++i) {
-      guint16 msg_len = ntohs (*(guint16 *)f_buffer) + sizeof (guint16);
+      guint32 msg_len = ((f_buffer[0] << 8) | f_buffer[1]) + sizeof (guint16);
 
       if (msg_len > f_buffer_len) {
         /* The next message in the buffer isn't complete yet. Wait for more
@@ -450,9 +450,9 @@ socket_recv_messages (NiceSocket *sock,
     if (nice_socket_is_reliable (sock) && parsed_buffer_length > 0) {
       /* Determine the portion of the current NiceInputMessage we can already
        * return. */
-      guint16 msg_len = 0;
+      gint32 msg_len = 0;
       if (!priv->fragment_buffer) {
-        msg_len = ntohs (*(guint16 *)buffer) + sizeof (guint16);
+        msg_len = ((buffer[0] << 8) | buffer[1]) + sizeof (guint16);
         if (msg_len > parsed_buffer_length) {
           /* The RFC4571 frame is larger than the current TURN message, need to
            * buffer it and wait for more data. */
@@ -1451,13 +1451,14 @@ nice_udp_turn_socket_parse_recv (NiceSocket *sock, NiceSocket **from_sock,
               /* check for unauthorized error response */
               if (stun_message_find_error (&msg, &code) ==
                   STUN_MESSAGE_RETURN_SUCCESS &&
-                  (code == 438 || (code == 401 &&
-                      !(recv_realm != NULL &&
-                          recv_realm_len > 0 &&
-                          recv_realm_len == sent_realm_len &&
-                          sent_realm != NULL &&
-                          memcmp (sent_realm, recv_realm,
-                              sent_realm_len) == 0)))) {
+                  (code == STUN_ERROR_STALE_NONCE ||
+                      (code == STUN_ERROR_UNAUTHORIZED &&
+                          !(recv_realm != NULL &&
+                              recv_realm_len > 0 &&
+                              recv_realm_len == sent_realm_len &&
+                              sent_realm != NULL &&
+                              memcmp (sent_realm, recv_realm,
+                                  sent_realm_len) == 0)))) {
 
                 g_free (priv->current_binding_msg);
                 priv->current_binding_msg = NULL;
@@ -1552,13 +1553,14 @@ nice_udp_turn_socket_parse_recv (NiceSocket *sock, NiceSocket **from_sock,
               /* check for unauthorized error response */
               if (stun_message_find_error (&msg, &code) ==
                   STUN_MESSAGE_RETURN_SUCCESS &&
-                  (code == 438 || (code == 401 &&
-                      !(recv_realm != NULL &&
-                          recv_realm_len > 0 &&
-                          recv_realm_len == sent_realm_len &&
-                          sent_realm != NULL &&
-                          memcmp (sent_realm, recv_realm,
-                              sent_realm_len) == 0)))) {
+                  (code == STUN_ERROR_STALE_NONCE ||
+                      (code == STUN_ERROR_UNAUTHORIZED &&
+                          !(recv_realm != NULL &&
+                              recv_realm_len > 0 &&
+                              recv_realm_len == sent_realm_len &&
+                              sent_realm != NULL &&
+                              memcmp (sent_realm, recv_realm,
+                                  sent_realm_len) == 0)))) {
 
                 priv->pending_permissions = g_list_delete_link (
                     priv->pending_permissions, i);

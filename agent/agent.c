@@ -118,6 +118,8 @@ enum
   PROP_STUN_INITIAL_TIMEOUT,
   PROP_STUN_RELIABLE_TIMEOUT,
   PROP_NOMINATION_MODE,
+  PROP_ICE_TRICKLE,
+  PROP_SUPPORT_RENOMINATION,
 };
 
 
@@ -465,6 +467,24 @@ nice_agent_class_init (NiceAgentClass *klass)
          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY));
 
   /**
+   * NiceAgent:support-renomination:
+   *
+   * Support RENOMINATION STUN attribute proposed here:
+   * https://tools.ietf.org/html/draft-thatcher-ice-renomination-00 As
+   * soon as RENOMINATION attribute is received from remote
+   * candidate's address, corresponding candidates pair gets
+   * selected. This is specific to Google Chrome/libWebRTC.
+   */
+  g_object_class_install_property (gobject_class, PROP_SUPPORT_RENOMINATION,
+      g_param_spec_boolean (
+         "support-renomination",
+         "Support RENOMINATION STUN attribute",
+         "As soon as RENOMINATION attribute is received from remote candidate's address, "
+         "corresponding candidates pair gets selected.",
+         FALSE,
+         G_PARAM_READWRITE));
+
+  /**
    * NiceAgent:proxy-ip:
    *
    * The proxy server IP used to bypass a proxy firewall
@@ -805,6 +825,24 @@ nice_agent_class_init (NiceAgentClass *klass)
         20, 99999,
         STUN_TIMER_DEFAULT_RELIABLE_TIMEOUT,
         G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
+
+   /**
+    * NiceAgent:ice-trickle
+    *
+    * Whether to perform Trickle ICE as per draft-ietf-ice-trickle-ice-21.
+    * When %TRUE, the agent will postpone changing a component state to
+    * %NICE_COMPONENT_STATE_FAILED until nice_agent_peer_candidate_gathering_done()
+    * has been called with the ID of the component's stream.
+    *
+    * Since: 0.1.16
+    */
+   g_object_class_install_property (gobject_class, PROP_ICE_TRICKLE,
+      g_param_spec_boolean (
+        "ice-trickle",
+        "Trickle ICE",
+        "Whether to perform Trickle ICE as per draft-ietf-ice-trickle-ice-21.",
+        FALSE,
+        G_PARAM_READWRITE));
 
   /* install signals */
 
@@ -1164,6 +1202,7 @@ nice_agent_init (NiceAgent *agent)
   agent->saved_controlling_mode = TRUE;
   agent->max_conn_checks = NICE_AGENT_MAX_CONNECTIVITY_CHECKS_DEFAULT;
   agent->nomination_mode = NICE_NOMINATION_MODE_AGGRESSIVE;
+  agent->support_renomination = FALSE;
 
   agent->discovery_list = NULL;
   agent->discovery_unsched_items = 0;
@@ -1226,6 +1265,8 @@ nice_agent_new_full (GMainContext *ctx,
       "nomination-mode", (flags & NICE_AGENT_OPTION_REGULAR_NOMINATION) ?
       NICE_NOMINATION_MODE_REGULAR : NICE_NOMINATION_MODE_AGGRESSIVE,
       "full-mode", (flags & NICE_AGENT_OPTION_LITE_MODE) ? FALSE : TRUE,
+      "ice-trickle", (flags & NICE_AGENT_OPTION_ICE_TRICKLE) ? TRUE : FALSE,
+      "support-renomination", (flags & NICE_AGENT_OPTION_SUPPORT_RENOMINATION) ? TRUE : FALSE,
       NULL);
 
   return agent;
@@ -1280,6 +1321,10 @@ nice_agent_get_property (
 
     case PROP_NOMINATION_MODE:
       g_value_set_enum (value, agent->nomination_mode);
+      break;
+
+    case PROP_SUPPORT_RENOMINATION:
+      g_value_set_boolean (value, agent->support_renomination);
       break;
 
     case PROP_PROXY_IP:
@@ -1362,6 +1407,10 @@ nice_agent_get_property (
 
     case PROP_STUN_RELIABLE_TIMEOUT:
       g_value_set_uint (value, agent->stun_reliable_timeout);
+      break;
+
+    case PROP_ICE_TRICKLE:
+      g_value_set_boolean (value, agent->use_ice_trickle);
       break;
 
     default:
@@ -1490,6 +1539,10 @@ nice_agent_set_property (
       agent->nomination_mode = g_value_get_enum (value);
       break;
 
+    case PROP_SUPPORT_RENOMINATION:
+      agent->support_renomination = g_value_get_boolean (value);
+      break;
+
     case PROP_PROXY_IP:
       g_free (agent->proxy_ip);
       agent->proxy_ip = g_value_dup_string (value);
@@ -1565,6 +1618,10 @@ nice_agent_set_property (
 
     case PROP_STUN_RELIABLE_TIMEOUT:
       agent->stun_reliable_timeout = g_value_get_uint (value);
+      break;
+
+    case PROP_ICE_TRICKLE:
+      agent->use_ice_trickle = g_value_get_boolean (value);
       break;
 
     default:
@@ -2702,7 +2759,8 @@ nice_agent_set_relay_info(NiceAgent *agent,
 
   nice_debug ("Agent %p: added relay server [%s]:%d of type %d to s/c %d/%d "
       "with user/pass : %s -- %s", agent, server_ip, server_port, type,
-      stream_id, component_id, username, password);
+      stream_id, component_id, username,
+      nice_debug_is_verbose() ? password : "****");
 
   component->turn_servers = g_list_append (component->turn_servers, turn);
 
@@ -3220,6 +3278,25 @@ static void priv_remove_keepalive_timer (NiceAgent *agent)
   }
 }
 
+static gboolean
+on_stream_refreshes_pruned (NiceAgent *agent, NiceStream *stream)
+{
+  // This is called from a timeout cb with agent lock held
+
+  nice_stream_close (agent, stream);
+
+  agent_unlock (agent);
+
+  /* Actually free the stream. This should be done with the lock released, as
+   * it could end up disposing of a NiceIOStream, which tries to take the
+   * agent lock itself. */
+  g_object_unref (stream);
+
+  agent_lock (agent);
+
+  return G_SOURCE_REMOVE;
+}
+
 NICEAPI_EXPORT void
 nice_agent_remove_stream (
   NiceAgent *agent,
@@ -3245,11 +3322,11 @@ nice_agent_remove_stream (
   /* note: remove items with matching stream_ids from both lists */
   conn_check_prune_stream (agent, stream);
   discovery_prune_stream (agent, stream_id);
-  refresh_prune_stream (agent, stream_id);
+  refresh_prune_stream_async (agent, stream,
+      (NiceTimeoutLockedCallback) on_stream_refreshes_pruned);
 
   /* Remove the stream and signal its removal. */
   agent->streams = g_slist_remove (agent->streams, stream);
-  nice_stream_close (agent, stream);
 
   if (!agent->streams)
     priv_remove_keepalive_timer (agent);
@@ -3258,13 +3335,6 @@ nice_agent_remove_stream (
       g_memdup (stream_ids, sizeof(stream_ids)));
 
   agent_unlock_and_emit (agent);
-
-  /* Actually free the stream. This should be done with the lock released, as
-   * it could end up disposing of a NiceIOStream, which tries to take the
-   * agent lock itself. */
-  g_object_unref (stream);
-
-  return;
 }
 
 NICEAPI_EXPORT void
@@ -3616,6 +3686,7 @@ _set_remote_candidates_locked (NiceAgent *agent, NiceStream *stream,
   }
 
   if (added > 0) {
+    conn_check_remote_candidates_set(agent, stream, component);
     conn_check_schedule_next (agent);
   }
 
@@ -4206,7 +4277,7 @@ output_message_get_size (const NiceOutputMessage *message)
   return message_len;
 }
 
-static gsize
+gsize
 input_message_get_size (const NiceInputMessage *message)
 {
   guint i;
@@ -5084,8 +5155,6 @@ nice_agent_dispose (GObject *object)
   /* step: free resources for the binding discovery timers */
   discovery_free (agent);
   g_assert (agent->discovery_list == NULL);
-  refresh_free (agent);
-  g_assert (agent->refresh_list == NULL);
 
   /* step: free resources for the connectivity check timers */
   conn_check_free (agent);
@@ -5102,16 +5171,14 @@ nice_agent_dispose (GObject *object)
   g_slist_free (agent->local_addresses);
   agent->local_addresses = NULL;
 
-  for (i = agent->streams; i; i = i->next)
-    {
-      NiceStream *s = i->data;
+  while (agent->streams) {
+    NiceStream *s = agent->streams->data;
 
-      nice_stream_close (agent, s);
-      g_object_unref (s);
-    }
+    nice_stream_close (agent, s);
+    g_object_unref (s);
 
-  g_slist_free (agent->streams);
-  agent->streams = NULL;
+    agent->streams = g_slist_delete_link(agent->streams, agent->streams);
+  }
 
   while ((sig = g_queue_pop_head (&agent->pending_signals))) {
     free_queued_signal (sig);
@@ -5388,9 +5455,10 @@ done:
   return !remove_source;
 
 out:
+  agent_unlock_and_emit (agent);
+
   g_object_unref (agent);
 
-  agent_unlock_and_emit (agent);
   return G_SOURCE_REMOVE;
 }
 
@@ -5850,6 +5918,8 @@ nice_agent_set_software (NiceAgent *agent, const gchar *software)
   if (software)
     agent->software_attribute = g_strdup_printf ("%s/%s",
         software, PACKAGE_STRING);
+  else
+    agent->software_attribute = NULL;
 
   nice_agent_reset_all_stun_agents (agent, TRUE);
 
@@ -6211,7 +6281,7 @@ nice_agent_parse_remote_sdp (NiceAgent *agent, const gchar *sdp)
 {
   NiceStream *current_stream = NULL;
   gchar **sdp_lines = NULL;
-  GSList *l, *stream_item = NULL;
+  GSList *stream_item = NULL;
   gint i;
   gint ret = 0;
 
@@ -6219,15 +6289,6 @@ nice_agent_parse_remote_sdp (NiceAgent *agent, const gchar *sdp)
   g_return_val_if_fail (sdp != NULL, -1);
 
   agent_lock (agent);
-
-  for (l = agent->streams; l; l = l->next) {
-    NiceStream *stream = l->data;
-
-    if (stream->name == NULL) {
-      ret = -1;
-      goto done;
-    }
-  }
 
   sdp_lines = g_strsplit (sdp, "\n", 0);
   for (i = 0; sdp_lines && sdp_lines[i]; i++) {
@@ -6580,4 +6641,56 @@ nice_agent_get_component_state (NiceAgent *agent,
   agent_unlock (agent);
 
   return state;
+}
+
+gboolean
+nice_agent_peer_candidate_gathering_done (NiceAgent *agent, guint stream_id)
+{
+  NiceStream *stream;
+  gboolean result = FALSE;
+
+  agent_lock (agent);
+
+  stream = agent_find_stream (agent, stream_id);
+  if (stream) {
+    stream->peer_gathering_done = TRUE;
+    result = TRUE;
+  }
+
+  agent_unlock (agent);
+
+  return result;
+}
+
+static gboolean
+on_agent_refreshes_pruned (NiceAgent *agent, gpointer user_data)
+{
+  GTask *task = user_data;
+
+  /* This is called from a timeout cb with agent lock held */
+
+  agent_unlock (agent);
+
+  g_task_return_boolean (task, TRUE);
+  g_object_unref (task);
+
+  agent_lock (agent);
+
+  return G_SOURCE_REMOVE;
+}
+
+void
+nice_agent_close_async (NiceAgent *agent, GAsyncReadyCallback callback,
+    gpointer callback_data)
+{
+  GTask *task;
+
+  task = g_task_new (agent, NULL, callback, callback_data);
+  g_task_set_source_tag (task, nice_agent_close_async);
+
+  agent_lock (agent);
+
+  refresh_prune_agent_async (agent, on_agent_refreshes_pruned, task);
+
+  agent_unlock (agent);
 }

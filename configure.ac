@@ -5,8 +5,8 @@ dnl Always compile with -Wall; if --enable-compile-warnings=error is passed,
 dnl also use -Werror. git and pre-releases default to -Werror
 
 dnl use a three digit version number for releases, and four for cvs/prerelease
-AC_INIT([libnice],[0.1.14.1])
-LIBNICE_RELEASE="no"
+AC_INIT([libnice],[0.1.16])
+LIBNICE_RELEASE="yes"
 
 AC_CANONICAL_TARGET
 
@@ -39,9 +39,9 @@ AC_CONFIG_FILES([
 #      Increment CURRENT and AGE. Set REVISION to 0
 #    If there was an incompatible interface change:
 #      Increment CURRENT. Set AGE and REVISION to 0
-LIBNICE_CURRENT=17
+LIBNICE_CURRENT=19
 LIBNICE_REVISION=0
-LIBNICE_AGE=7
+LIBNICE_AGE=9
 LIBNICE_LIBVERSION=${LIBNICE_CURRENT}:${LIBNICE_REVISION}:${LIBNICE_AGE}
 LIBNICE_LT_LDFLAGS="-version-info ${LIBNICE_LIBVERSION} -no-undefined"
 AC_SUBST(LIBNICE_LT_LDFLAGS)
@@ -95,7 +95,7 @@ AC_CHECK_HEADERS([ifaddrs.h],
 AC_CHECK_TYPES([size_t, ssize_t])
 
 # Also put matching version in LIBNICE_CFLAGS
-GLIB_REQ=2.44
+GLIB_REQ=2.48
 
 LIBNICE_CFLAGS="-DGLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_44 -DGLIB_VERSION_MAX_ALLOWED=GLIB_VERSION_2_44"
 

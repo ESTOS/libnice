@@ -29,6 +29,7 @@ nice_agent_set_remote_candidates
 nice_agent_get_remote_candidates
 nice_agent_get_local_candidates
 nice_agent_get_selected_pair
+nice_agent_peer_candidate_gathering_done
 nice_agent_send
 nice_agent_send_messages_nonblocking
 nice_agent_recv
@@ -54,6 +55,7 @@ nice_agent_parse_remote_candidate_sdp
 nice_agent_get_io_stream
 nice_agent_get_selected_socket
 nice_agent_get_component_state
+nice_agent_close_async
 nice_component_state_to_string
 <SUBSECTION Standard>
 NICE_AGENT
@@ -95,6 +97,12 @@ nice_candidate_equal_target
 <SUBSECTION Standard>
 NICE_TYPE_CANDIDATE
 nice_candidate_get_type
+nice_candidate_transport_get_type
+nice_candidate_type_get_type
+nice_relay_type_get_type
+NICE_TYPE_RELAY_TYPE
+NICE_TYPE_CANDIDATE_TRANSPORT
+NICE_TYPE_CANDIDATE_TYPE
 <SUBSECTION Private>
 NICE_CANDIDATE_TYPE_PREF_HOST
 NICE_CANDIDATE_TYPE_PREF_PEER_REFLEXIVE
@@ -341,6 +349,14 @@ PSEUDO_TCP_SOCKET_CLASS
 PSEUDO_TCP_SOCKET_TYPE
 IS_PSEUDO_TCP_SOCKET
 IS_PSEUDO_TCP_SOCKET_CLASS
+pseudo_tcp_debug_level_get_type
+pseudo_tcp_shutdown_get_type
+pseudo_tcp_state_get_type
+pseudo_tcp_write_result_get_type
+NICE_TYPE_TCP_DEBUG_LEVEL
+NICE_TYPE_TCP_SHUTDOWN
+NICE_TYPE_TCP_STATE
+NICE_TYPE_TCP_WRITE_RESULT
 <SUBSECTION Private>
 PseudoTcpSocketPrivate
 ECONNRESET
