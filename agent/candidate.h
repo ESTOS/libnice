@@ -141,6 +141,10 @@ typedef struct _TurnServer TurnServer;
  * @server: The #NiceAddress of the TURN server
  * @username: The TURN username
  * @password: The TURN password
+ * @decoded_username: The base64 decoded TURN username
+ * @decoded_password: The base64 decoded TURN password
+ * @decoded_username_len: The length of @decoded_username
+ * @decoded_password_len: The length of @decoded_password
  * @type: The #NiceRelayType of the server
  *
  * A structure to store the TURN relay settings
@@ -152,6 +156,10 @@ struct _TurnServer
   NiceAddress server;
   gchar *username;
   gchar *password;
+  guint8 *decoded_username;
+  guint8 *decoded_password;
+  gsize decoded_username_len;
+  gsize decoded_password_len;
   NiceRelayType type;
 };
 
@@ -172,6 +180,7 @@ struct _TurnServer
  * @turn: The #TurnServer settings if the candidate is
  * of type %NICE_CANDIDATE_TYPE_RELAYED
  * @sockptr: The underlying socket
+ * @keepalive_next_tick: The timestamp for the next keepalive
  *
  * A structure to represent an ICE candidate
  <note>
@@ -197,6 +206,7 @@ struct _NiceCandidate
   gchar *password;        /* pointer to a nul-terminated password string */
   TurnServer *turn;
   gpointer sockptr;
+  guint64 keepalive_next_tick; /* next tick timestamp */
 };
 
 /**

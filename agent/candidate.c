@@ -171,9 +171,12 @@ nice_candidate_ip_local_preference (const NiceCandidate *candidate)
   ips = nice_interfaces_get_local_ips (TRUE);
 
   for (iter = ips; iter; iter = g_list_next (iter)) {
-    if (g_strcmp0 (ip_string, iter->data) == 0) {
+    /* Strip the IPv6 link-local scope string */
+    gchar **tokens = g_strsplit (iter->data, "%", 2);
+    gboolean match = (g_strcmp0 (ip_string, tokens[0]) == 0);
+    g_strfreev (tokens);
+    if (match)
       break;
-    }
     ++preference;
   }
 
@@ -212,7 +215,7 @@ nice_candidate_ice_local_preference (const NiceCandidate *candidate)
         break;
       case NICE_CANDIDATE_TRANSPORT_UDP:
       default:
-        return 1;
+        direction_preference = 1;
         break;
     }
 
@@ -339,6 +342,14 @@ nice_candidate_pair_priority (guint32 o_prio, guint32 a_prio)
   const guint64 thirtytwo = 32;
 
   return (one << thirtytwo) * min + 2 * max + (o_prio > a_prio ? 1 : 0);
+}
+
+void
+nice_candidate_pair_priority_to_string (guint64 prio, gchar *string)
+{
+  g_snprintf (string, NICE_CANDIDATE_PAIR_PRIORITY_MAX_SIZE,
+      "%08"G_GUINT64_FORMAT":%08"G_GUINT64_FORMAT":%" G_GUINT64_FORMAT,
+      prio >> 32, (prio >> 1) & 0x7fffffff, prio & 1);
 }
 
 /*

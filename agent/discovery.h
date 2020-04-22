@@ -49,7 +49,7 @@ typedef struct
   NiceCandidateType type;   /* candidate type STUN or TURN */
   NiceSocket *nicesock;  /* XXX: should be taken from local cand: existing socket to use */
   NiceAddress server;       /* STUN/TURN server address */
-  GTimeVal next_tick;       /* next tick timestamp */
+  gint64 next_tick;       /* next tick timestamp */
   gboolean pending;         /* is discovery in progress? */
   gboolean done;            /* is discovery complete? */
   guint stream_id;
@@ -78,13 +78,20 @@ typedef struct
   StunMessage stun_message;
   uint8_t stun_resp_buffer[STUN_MAX_MESSAGE_SIZE];
   StunMessage stun_resp_msg;
+
+  gboolean disposing;
+  GDestroyNotify destroy_cb;
+  gpointer destroy_cb_data;
 } CandidateRefresh;
 
-void refresh_free (NiceAgent *agent);
-void refresh_prune_stream (NiceAgent *agent, guint stream_id);
+void refresh_free (NiceAgent *agent, CandidateRefresh *refresh);
+void refresh_prune_agent_async (NiceAgent *agent,
+  NiceTimeoutLockedCallback function, gpointer user_data);
+void refresh_prune_stream_async (NiceAgent *agent, NiceStream *stream,
+  NiceTimeoutLockedCallback function);
 void refresh_prune_candidate (NiceAgent *agent, NiceCandidate *candidate);
-void refresh_prune_socket (NiceAgent *agent, NiceSocket *sock);
-void refresh_cancel (NiceAgent *agent, CandidateRefresh *refresh);
+void refresh_prune_candidate_async (NiceAgent *agent, NiceCandidate *candidate,
+  NiceTimeoutLockedCallback function);
 
 
 void discovery_free (NiceAgent *agent);
@@ -142,6 +149,7 @@ discovery_add_peer_reflexive_candidate (
   NiceAgent *agent,
   guint stream_id,
   guint component_id,
+  guint32 priority,
   NiceAddress *address,
   NiceSocket *base_socket,
   NiceCandidate *local,

@@ -103,6 +103,8 @@ finish_check (StunAgent *agent, StunMessage *msg)
   size_t len;
   uint16_t plen;
   StunMessage msg2 = {0};
+  StunMessageReturn val;
+
   msg2.agent = msg->agent;
   msg2.buffer = buf;
   msg2.buffer_len = sizeof(buf);
@@ -117,7 +119,8 @@ finish_check (StunAgent *agent, StunMessage *msg)
   if (stun_message_find (&msg2, STUN_ATTRIBUTE_MESSAGE_INTEGRITY, &plen) != NULL)
     fatal ("Missing HMAC test failed");
 
-  stun_message_append_string (&msg2, STUN_ATTRIBUTE_USERNAME, (char *) usr);
+  val = stun_message_append_string (&msg2, STUN_ATTRIBUTE_USERNAME, (char *) usr);
+  assert (val == STUN_MESSAGE_RETURN_SUCCESS);
 
   len = stun_agent_finish_message (agent, &msg2, pwd, strlen ((char *) pwd));
 
@@ -251,7 +254,7 @@ int main (void)
   if (stun_message_append_xor_addr (&msg, 0xffff, &addr.storage,
           sizeof (addr)) != STUN_MESSAGE_RETURN_NOT_ENOUGH_SPACE)
     fatal ("Address overflow test failed");
-  len = sizeof (msg);
+
   if (stun_agent_finish_message (&agent, &msg, NULL, 0) != 0)
     fatal ("Fingerprint overflow test failed");
   if (stun_agent_finish_message (&agent, &msg, pwd, strlen ((char *) pwd)) != 0)

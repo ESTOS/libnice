@@ -15,7 +15,7 @@ AM_CFLAGS = \
 	-DG_LOG_DOMAIN=\"libnice-stun\" \
 	$(LIBNICE_CFLAGS) \
 	$(GNUTLS_CFLAGS) \
-	$(OPENSSL_CFLAGS) \
+	$(OPENSSL_INCLUDES) \
 	$(NULL)
 AM_CPPFLAGS = -I$(top_srcdir)
 
@@ -39,9 +39,9 @@ libstun_la_SOURCES = constants.h \
 	usages/turn.c usages/turn.h \
 	usages/timer.c usages/timer.h
 
-libstun_la_LIBADD = $(LIBRT) $(GNUTLS_LIBS) $(OPENSSL_LIBS)
+libstun_la_LIBADD = $(LIBRT) $(GNUTLS_LIBS) $(OPENSSL_LIBS) $(OPENSSL_LDFLAGS)
 
-EXTRA_DIST = win32_common.h
+EXTRA_DIST = win32_common.h meson.build
 
 libstun_la_includedir=$(includedir)/stun
 libstun_la_include_HEADERS = stunagent.h stunmessage.h win32_common.h debug.h constants.h

@@ -71,6 +71,13 @@
 #include <net/if.h>
 #include <arpa/inet.h>
 
+#ifdef IGNORED_IFACE_PREFIX
+static const gchar *ignored_iface_prefix_list[] = {
+  IGNORED_IFACE_PREFIX,
+  NULL
+};
+#endif
+
 #endif /* G_OS_UNIX */
 
 #if (defined(G_OS_UNIX) && defined(HAVE_GETIFADDRS)) || defined(G_OS_WIN32)
@@ -99,42 +106,8 @@ sockaddr_to_string (const struct sockaddr *addr)
 
 #ifdef G_OS_UNIX
 
-#ifdef HAVE_GETIFADDRS
-
-GList *
-nice_interfaces_get_local_interfaces (void)
-{
-  GList *interfaces = NULL;
-  struct ifaddrs *ifa, *results;
-
-  if (getifaddrs (&results) < 0) {
-    return NULL;
-  }
-
-  /* Loop and get each interface the system has, one by one... */
-  for (ifa = results; ifa; ifa = ifa->ifa_next) {
-    /* no ip address from interface that is down */
-    if ((ifa->ifa_flags & IFF_UP) == 0)
-      continue;
-
-    if (ifa->ifa_addr == NULL)
-      continue;
-
-    if (ifa->ifa_addr->sa_family == AF_INET || ifa->ifa_addr->sa_family == AF_INET6) {
-      nice_debug ("Found interface : %s", ifa->ifa_name);
-      interfaces = g_list_prepend (interfaces, g_strdup (ifa->ifa_name));
-    }
-  }
-
-  freeifaddrs (results);
-
-  return interfaces;
-}
-
-#else /* ! HAVE_GETIFADDRS */
-
-GList *
-nice_interfaces_get_local_interfaces (void)
+static GList *
+get_local_interfaces_ioctl (void)
 {
   GList *interfaces = NULL;
   gint sockfd;
@@ -143,7 +116,7 @@ nice_interfaces_get_local_interfaces (void)
   struct ifconf ifc;
 
   if ((sockfd = socket (AF_INET, SOCK_DGRAM, IPPROTO_IP)) < 0) {
-    nice_debug ("error : Cannot open socket to retreive interface list");
+    nice_debug ("error : Cannot open socket to retrieve interface list");
     return NULL;
   }
 
@@ -184,6 +157,49 @@ nice_interfaces_get_local_interfaces (void)
 
   return interfaces;
 }
+
+#ifdef HAVE_GETIFADDRS
+
+GList *
+nice_interfaces_get_local_interfaces (void)
+{
+  GList *interfaces = NULL;
+  struct ifaddrs *ifa, *results;
+
+  if (getifaddrs (&results) < 0) {
+    nice_debug ("Failed to retrieve list of network interfaces with \"getifaddrs\": %s."
+      "Trying to use fallback ...", strerror (errno));
+    return get_local_interfaces_ioctl ();
+  }
+
+  /* Loop and get each interface the system has, one by one... */
+  for (ifa = results; ifa; ifa = ifa->ifa_next) {
+    /* no ip address from interface that is down */
+    if ((ifa->ifa_flags & IFF_UP) == 0)
+      continue;
+
+    if (ifa->ifa_addr == NULL)
+      continue;
+
+    if (ifa->ifa_addr->sa_family == AF_INET || ifa->ifa_addr->sa_family == AF_INET6) {
+      nice_debug ("Found interface : %s", ifa->ifa_name);
+      interfaces = g_list_prepend (interfaces, g_strdup (ifa->ifa_name));
+    }
+  }
+
+  freeifaddrs (results);
+
+  return interfaces;
+}
+
+#else /* ! HAVE_GETIFADDRS */
+
+GList *
+nice_interfaces_get_local_interfaces (void)
+{
+  return get_local_interfaces_ioctl ();
+}
+
 #endif /* HAVE_GETIFADDRS */
 
 
@@ -193,25 +209,35 @@ nice_interfaces_is_private_ip (const struct sockaddr *_sa)
   union {
     const struct sockaddr *addr;
     const struct sockaddr_in *in;
+    const struct sockaddr_in6 *in6;
   } sa;
 
   sa.addr = _sa;
 
   if (sa.addr->sa_family == AF_INET) {
     /* 10.x.x.x/8 */
-    if (sa.in->sin_addr.s_addr >> 24 == 0x0A)
+    if (g_ntohl (sa.in->sin_addr.s_addr) >> 24 == 0x0A)
       return TRUE;
 
     /* 172.16.0.0 - 172.31.255.255 = 172.16.0.0/10 */
-    if (sa.in->sin_addr.s_addr >> 20 == 0xAC1)
+    if (g_ntohl (sa.in->sin_addr.s_addr) >> 20 == 0xAC1)
       return TRUE;
 
     /* 192.168.x.x/16 */
-    if (sa.in->sin_addr.s_addr >> 16 == 0xC0A8)
+    if (g_ntohl (sa.in->sin_addr.s_addr) >> 16 == 0xC0A8)
       return TRUE;
 
     /* 169.254.x.x/16  (for APIPA) */
-    if (sa.in->sin_addr.s_addr >> 16 == 0xA9FE)
+    if (g_ntohl (sa.in->sin_addr.s_addr) >> 16 == 0xA9FE)
+      return TRUE;
+  } else if (sa.addr->sa_family == AF_INET6) {
+    /* fc00::/7 Unique local address (ULA) */
+    if ((sa.in6->sin6_addr.s6_addr[0] & 0xFE) == 0xFC)
+      return TRUE;
+
+    /* fe80::/10 link-local address */
+    if ( (sa.in6->sin6_addr.s6_addr[0]         == 0xFE)  &&
+        ((sa.in6->sin6_addr.s6_addr[1] & 0xC0) == 0x80))
       return TRUE;
   }
   
@@ -235,73 +261,8 @@ add_ip_to_list (GList *list, gchar *ip, gboolean append)
     return g_list_prepend (list, ip);
 }
 
-#ifdef HAVE_GETIFADDRS
-
-GList *
-nice_interfaces_get_local_ips (gboolean include_loopback)
-{
-  GList *ips = NULL;
-  struct ifaddrs *ifa, *results;
-  GList *loopbacks = NULL;
-
-
-  if (getifaddrs (&results) < 0)
-      return NULL;
-
-  /* Loop through the interface list and get the IP address of each IF */
-  for (ifa = results; ifa; ifa = ifa->ifa_next) {
-    gchar *addr_string;
-
-    /* no ip address from interface that is down */
-    if ((ifa->ifa_flags & IFF_UP) == 0)
-      continue;
-
-    if (ifa->ifa_addr == NULL)
-      continue;
-
-    /* Convert to a string. */
-    addr_string = sockaddr_to_string (ifa->ifa_addr);
-    if (addr_string == NULL) {
-      nice_debug ("Failed to convert address to string for interface ‘%s’.",
-          ifa->ifa_name);
-      continue;
-    }
-
-    nice_debug ("Interface:  %s", ifa->ifa_name);
-    nice_debug ("IP Address: %s", addr_string);
-    if ((ifa->ifa_flags & IFF_LOOPBACK) == IFF_LOOPBACK) {
-      if (include_loopback) {
-        loopbacks = add_ip_to_list (loopbacks, addr_string, TRUE);
-      } else {
-        nice_debug ("Ignoring loopback interface");
-        g_free (addr_string);
-      }
-#ifdef IGNORED_IFACE_PREFIX
-    } else if (g_str_has_prefix (ifa->ifa_name, IGNORED_IFACE_PREFIX)) {
-      nice_debug ("Ignoring interface %s as it matches prefix %s",
-          ifa->ifa_name, IGNORED_IFACE_PREFIX);
-      g_free (addr_string);
-#endif
-    } else {
-      if (nice_interfaces_is_private_ip (ifa->ifa_addr))
-        ips = add_ip_to_list (ips, addr_string, TRUE);
-      else
-        ips = add_ip_to_list (ips, addr_string, FALSE);
-    }
-  }
-
-  freeifaddrs (results);
-
-  if (loopbacks)
-    ips = g_list_concat (ips, loopbacks);
-
-  return ips;
-}
-
-#else /* ! HAVE_GETIFADDRS */
-
-GList *
-nice_interfaces_get_local_ips (gboolean include_loopback)
+static GList *
+get_local_ips_ioctl (gboolean include_loopback)
 {
   GList *ips = NULL;
   gint sockfd;
@@ -309,10 +270,14 @@ nice_interfaces_get_local_ips (gboolean include_loopback)
   struct ifreq *ifr;
   struct ifconf ifc;
   struct sockaddr_in *sa;
-  gchar *loopback = NULL;
+  GList *loopbacks = NULL;
+#ifdef IGNORED_IFACE_PREFIX
+  const gchar **prefix;
+  gboolean ignored;
+#endif
 
   if ((sockfd = socket (AF_INET, SOCK_DGRAM, IPPROTO_IP)) < 0) {
-    nice_debug ("Error : Cannot open socket to retreive interface list");
+    nice_debug ("Error : Cannot open socket to retrieve interface list");
     return NULL;
   }
 
@@ -350,30 +315,147 @@ nice_interfaces_get_local_ips (gboolean include_loopback)
           " Skipping...", ifr->ifr_name);
       continue;  /* failed to get flags, skip it */
     }
+
+    /* no ip address from interface that is down */
+    if ((ifr->ifr_flags & IFF_UP) == 0)
+      continue;
+
+    /* no ip address from interface that isn't running */
+    if ((ifr->ifr_flags & IFF_RUNNING) == 0)
+      continue;
+
     sa = (struct sockaddr_in *) &ifr->ifr_addr;
     nice_debug ("Interface:  %s", ifr->ifr_name);
     nice_debug ("IP Address: %s", inet_ntoa (sa->sin_addr));
     if ((ifr->ifr_flags & IFF_LOOPBACK) == IFF_LOOPBACK){
       if (include_loopback)
-        loopback = g_strdup (inet_ntoa (sa->sin_addr));
+        loopbacks = add_ip_to_list (loopbacks, g_strdup (inet_ntoa (sa->sin_addr)), TRUE);
       else
         nice_debug ("Ignoring loopback interface");
-    } else {
-      if (nice_interfaces_is_private_ip ((struct sockaddr *) sa)) {
-        ips = add_ip_to_list (ips, g_strdup (inet_ntoa (sa->sin_addr)), TRUE);
-      } else {
-        ips = add_ip_to_list (ips, g_strdup (inet_ntoa (sa->sin_addr)), FALSE);
+      continue;
+    }
+
+#ifdef IGNORED_IFACE_PREFIX
+    ignored = FALSE;
+    for (prefix = ignored_iface_prefix_list; *prefix; prefix++) {
+      if (g_str_has_prefix (ifr->ifr_name, *prefix)) {
+        nice_debug ("Ignoring interface %s as it matches prefix %s",
+            ifr->ifr_name, *prefix);
+        ignored = TRUE;
+        break;
       }
+    }
+
+    if (ignored)
+      continue;
+#endif
+
+    if (nice_interfaces_is_private_ip ((struct sockaddr *) sa)) {
+      ips = add_ip_to_list (ips, g_strdup (inet_ntoa (sa->sin_addr)), TRUE);
+    } else {
+      ips = add_ip_to_list (ips, g_strdup (inet_ntoa (sa->sin_addr)), FALSE);
     }
   }
 
   close (sockfd);
   free (ifc.ifc_req);
 
-  if (loopback)
-    ips = add_ip_to_list (ips, loopback, TRUE);
+  if (loopbacks)
+    ips = g_list_concat (ips, loopbacks);
 
   return ips;
+}
+
+#ifdef HAVE_GETIFADDRS
+
+GList *
+nice_interfaces_get_local_ips (gboolean include_loopback)
+{
+  GList *ips = NULL;
+  struct ifaddrs *ifa, *results;
+  GList *loopbacks = NULL;
+#ifdef IGNORED_IFACE_PREFIX
+  const gchar **prefix;
+  gboolean ignored;
+#endif
+
+  if (getifaddrs (&results) < 0) {
+    nice_debug ("Failed to retrieve list of network interfaces with \"getifaddrs\": %s."
+      "Trying to use fallback ...", strerror (errno));
+    return get_local_ips_ioctl (include_loopback);
+  }
+
+  /* Loop through the interface list and get the IP address of each IF */
+  for (ifa = results; ifa; ifa = ifa->ifa_next) {
+    gchar *addr_string;
+
+    /* no ip address from interface that is down */
+    if ((ifa->ifa_flags & IFF_UP) == 0)
+      continue;
+
+    /* no ip address from interface that isn't running */
+    if ((ifa->ifa_flags & IFF_RUNNING) == 0)
+      continue;
+
+    if (ifa->ifa_addr == NULL)
+      continue;
+
+    /* Convert to a string. */
+    addr_string = sockaddr_to_string (ifa->ifa_addr);
+    if (addr_string == NULL) {
+      nice_debug ("Failed to convert address to string for interface ‘%s’.",
+          ifa->ifa_name);
+      continue;
+    }
+
+    nice_debug ("Interface:  %s", ifa->ifa_name);
+    nice_debug ("IP Address: %s", addr_string);
+    if ((ifa->ifa_flags & IFF_LOOPBACK) == IFF_LOOPBACK) {
+      if (include_loopback) {
+        loopbacks = add_ip_to_list (loopbacks, addr_string, TRUE);
+      } else {
+        nice_debug ("Ignoring loopback interface");
+        g_free (addr_string);
+      }
+      continue;
+    }
+
+#ifdef IGNORED_IFACE_PREFIX
+    ignored = FALSE;
+    for (prefix = ignored_iface_prefix_list; *prefix; prefix++) {
+      if (g_str_has_prefix (ifa->ifa_name, *prefix)) {
+        nice_debug ("Ignoring interface %s as it matches prefix %s",
+            ifa->ifa_name, *prefix);
+        g_free (addr_string);
+        ignored = TRUE;
+        break;
+      }
+    }
+
+    if (ignored)
+      continue;
+#endif
+
+    if (nice_interfaces_is_private_ip (ifa->ifa_addr))
+      ips = add_ip_to_list (ips, addr_string, TRUE);
+    else
+      ips = add_ip_to_list (ips, addr_string, FALSE);
+  }
+
+  freeifaddrs (results);
+
+  if (loopbacks)
+    ips = g_list_concat (ips, loopbacks);
+
+  return ips;
+}
+
+#else /* ! HAVE_GETIFADDRS */
+
+GList *
+nice_interfaces_get_local_ips (gboolean include_loopback)
+{
+  return get_local_ips_ioctl (include_loopback);
 }
 
 #endif /* HAVE_GETIFADDRS */
@@ -395,7 +477,7 @@ nice_interfaces_get_ip_for_interface (gchar *interface_name)
   g_strlcpy (ifr.ifr_name, interface_name, sizeof (ifr.ifr_name));
 
   if ((sockfd = socket (AF_INET, SOCK_DGRAM, IPPROTO_IP)) < 0) {
-    nice_debug ("Error : Cannot open socket to retreive interface list");
+    nice_debug ("Error : Cannot open socket to retrieve interface list");
     return NULL;
   }
 
@@ -458,7 +540,7 @@ SOCKET nice_interfaces_get_WSA_socket ()
 
 
   if ((sock = socket (AF_INET, SOCK_DGRAM, 0)) == INVALID_SOCKET) {
-    nice_debug ("Error : Could not open socket to retreive interface list,"
+    nice_debug ("Error : Could not open socket to retrieve interface list,"
         " error no : %d", WSAGetLastError ());
     return INVALID_SOCKET;
   }

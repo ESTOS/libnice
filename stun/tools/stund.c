@@ -55,14 +55,23 @@
 
 #include <sys/types.h>
 
-
+#ifdef _WIN32
+#include <WinSock2.h>
+#else
 #include <sys/socket.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#endif
 
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#else
+# define close(fd) _close(fd)
+#endif
+
 #include <errno.h>
 #include <limits.h>
+#include <stdio.h>
 
 #ifndef SOL_IP
 # define SOL_IP IPPROTO_IP
@@ -121,7 +130,7 @@ int listen_socket (int fam, int type, int proto, unsigned int port)
 
     case AF_INET6:
 #ifdef IPV6_V6ONLY
-      setsockopt (fd, SOL_IPV6, IPV6_V6ONLY, &yes, sizeof (yes));
+      setsockopt (fd, SOL_IPV6, IPV6_V6ONLY, (const char *) &yes, sizeof (yes));
 #endif
       addr.in6.sin6_port = htons (port);
       break;
@@ -142,13 +151,13 @@ int listen_socket (int fam, int type, int proto, unsigned int port)
     {
       case AF_INET:
 #ifdef IP_RECVERR
-        setsockopt (fd, SOL_IP, IP_RECVERR, &yes, sizeof (yes));
+        setsockopt (fd, SOL_IP, IP_RECVERR, (const char*) &yes, sizeof (yes));
 #endif
         break;
 
       case AF_INET6:
 #ifdef IPV6_RECVERR
-        setsockopt (fd, SOL_IPV6, IPV6_RECVERR, &yes, sizeof (yes));
+        setsockopt (fd, SOL_IPV6, IPV6_RECVERR, (const char*) &yes, sizeof (yes));
 #endif
         break;
 
@@ -280,28 +289,42 @@ int main (int argc, char *argv[])
 {
   int family = AF_INET;
   unsigned port = IPPORT_STUN;
+  int i;
 
-  for (;;)
+
+#ifdef _WIN32
+  WSADATA wsadata;
+
+  if (WSAStartup(MAKEWORD(2, 0), &wsadata) != 0) {
+	  fprintf(stderr, "Could not start Winsock2");
+	  return 1;
+  }
+
+#endif
+
+
+  for (i = 1; i < argc; ++i)
   {
-    int c = getopt (argc, argv, "46");
-    if (c == EOF)
-      break;
+    const char *arg = argv[i];
 
-    switch (c)
+    if (strcmp (arg, "-4") == 0)
     {
-      default:
-      case '4':
         family = AF_INET;
-        break;
-
-      case '6':
+    }
+    else if (strcmp (arg, "-6") == 0)
+    {
         family = AF_INET6;
+    }
+    else if (arg[0] < '0' || arg[0] > '9')
+    {
+      fprintf (stderr, "Unexpected command line argument '%s'", arg);
+    }
+    else
+    {
+      port = atoi (arg);
         break;
     }
   }
-
-  if (optind < argc)
-    port = atoi (argv[optind++]);
 
   signal (SIGINT, exit_handler);
   signal (SIGTERM, exit_handler);

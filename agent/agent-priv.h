@@ -122,18 +122,6 @@ nice_input_message_iter_compare (const NiceInputMessageIter *a,
   ((obj)->compatibility == NICE_COMPATIBILITY_RFC5245 || \
   (obj)->compatibility == NICE_COMPATIBILITY_OC2007R2)
 
-/* A grace period before declaring a component as failed, in msecs. This
- * delay is added to reduce the chance to see the agent receiving new
- * stun activity just after the conncheck list has been declared failed,
- * reactiviting conncheck activity, and causing a (valid) state
- * transitions like that: connecting -> failed -> connecting ->
- * connected -> ready.
- * Such transitions are not buggy per-se, but may break the
- * test-suite, that counts precisely the number of time each state
- * has been set, and doesnt expect these transcient failed states.
- */
-#define NICE_AGENT_MAX_TIMER_GRACE_PERIOD 1000
-
 struct _NiceAgent
 {
   GObject parent;                 /* gobject pointer */
@@ -156,6 +144,8 @@ struct _NiceAgent
   guint stun_initial_timeout;     /* property: stun initial timeout, RTO */
   guint stun_reliable_timeout;    /* property: stun reliable timeout */
   NiceNominationMode nomination_mode; /* property: Nomination mode */
+  gboolean support_renomination;  /* property: support RENOMINATION STUN attribute */
+  guint idle_timeout;             /* property: conncheck timeout before stop */
   gboolean force_nomination_mode; /* avoid switching nomination mode if TRUE */
 
   GSList *local_addresses;        /* list of NiceAddresses for local
@@ -191,8 +181,9 @@ struct _NiceAgent
   guint16 rfc4571_expecting_length;
   gboolean use_ice_udp;
   gboolean use_ice_tcp;
+  gboolean use_ice_trickle;
 
-  guint conncheck_timer_grace_period; /* ongoing delay before timer stop */
+  guint conncheck_ongoing_idle_delay; /* ongoing delay before timer stop */
   gboolean controlling_mode;          /* controlling mode used by the
                                          conncheck */
   /* XXX: add pointer to internal data struct for ABI-safe extensions */
@@ -278,9 +269,11 @@ compact_output_message (const NiceOutputMessage *message, gsize *buffer_length);
 gsize
 output_message_get_size (const NiceOutputMessage *message);
 
+gsize
+input_message_get_size (const NiceInputMessage *message);
+
 gssize agent_socket_send (NiceSocket *sock, const NiceAddress *addr, gsize len,
     const gchar *buf);
-
 
 guint32
 nice_candidate_jingle_priority (NiceCandidate *candidate);
@@ -303,6 +296,11 @@ nice_candidate_ms_ice_priority (const NiceCandidate *candidate,
 guint64
 nice_candidate_pair_priority (guint32 o_prio, guint32 a_prio);
 
+#define NICE_CANDIDATE_PAIR_PRIORITY_MAX_SIZE 32
+
+void
+nice_candidate_pair_priority_to_string (guint64 prio, gchar *string);
+
 /*
  * nice_debug_init:
  *
@@ -322,6 +320,14 @@ gboolean nice_debug_is_enabled (void);
 gboolean nice_debug_is_verbose (void);
 void nice_debug (const char *fmt, ...) G_GNUC_PRINTF (1, 2);
 void nice_debug_verbose (const char *fmt, ...) G_GNUC_PRINTF (1, 2);
+#endif
+
+#if !GLIB_CHECK_VERSION(2, 59, 0)
+#if __GNUC__ > 6
+#define G_GNUC_FALLTHROUGH __attribute__((fallthrough))
+#else
+#define G_GNUC_FALLTHROUGH
+#endif /* __GNUC__ */
 #endif
 
 #endif /*_NICE_AGENT_PRIV_H */
