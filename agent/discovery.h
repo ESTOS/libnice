@@ -82,6 +82,7 @@ typedef struct
   gboolean disposing;
   GDestroyNotify destroy_cb;
   gpointer destroy_cb_data;
+  GSource *destroy_source;
 } CandidateRefresh;
 
 void refresh_free (NiceAgent *agent, CandidateRefresh *refresh);
@@ -103,7 +104,8 @@ typedef enum {
   HOST_CANDIDATE_SUCCESS,
   HOST_CANDIDATE_FAILED,
   HOST_CANDIDATE_CANT_CREATE_SOCKET,
-  HOST_CANDIDATE_REDUNDANT
+  HOST_CANDIDATE_REDUNDANT,
+  HOST_CANDIDATE_DUPLICATE_PORT
 } HostCandidateResult;
 
 HostCandidateResult

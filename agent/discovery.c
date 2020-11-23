@@ -149,7 +149,7 @@ void discovery_prune_socket (NiceAgent *agent, NiceSocket *sock)
  */
 void refresh_free (NiceAgent *agent, CandidateRefresh *cand)
 {
-  nice_debug ("Freeing candidate refresh %p", cand);
+  nice_debug ("Agent %p : Freeing candidate refresh %p", agent, cand);
 
   agent->refresh_list = g_slist_remove (agent->refresh_list, cand);
 
@@ -161,6 +161,11 @@ void refresh_free (NiceAgent *agent, CandidateRefresh *cand)
   if (cand->tick_source) {
     g_source_destroy (cand->tick_source);
     g_clear_pointer (&cand->tick_source, g_source_unref);
+  }
+
+  if (cand->destroy_source) {
+    g_source_destroy (cand->destroy_source);
+    g_source_unref (cand->destroy_source);
   }
 
   if (cand->destroy_cb) {
@@ -178,7 +183,8 @@ static gboolean on_refresh_remove_timeout (NiceAgent *agent,
       {
         StunTransactionId id;
 
-        nice_debug ("TURN deallocate for refresh %p timed out", cand);
+        nice_debug ("Agent %p : TURN deallocate for refresh %p timed out",
+            agent, cand);
 
         stun_message_id (&cand->stun_message, id);
         stun_agent_forget_transaction (&cand->stun_agent, id);
@@ -187,7 +193,8 @@ static gboolean on_refresh_remove_timeout (NiceAgent *agent,
         break;
       }
     case STUN_USAGE_TIMER_RETURN_RETRANSMIT:
-      nice_debug ("Retransmitting TURN deallocate for refresh %p", cand);
+      nice_debug ("Agent %p : Retransmitting TURN deallocate for refresh %p",
+          agent, cand);
 
       agent_socket_send (cand->nicesock, &cand->server,
           stun_message_length (&cand->stun_message), (gchar *)cand->stun_buffer);
@@ -220,13 +227,18 @@ static gboolean refresh_remove_async (NiceAgent *agent, gpointer pointer)
   CandidateRefresh *cand = (CandidateRefresh *) pointer;
   StunUsageTurnCompatibility turn_compat = agent_to_turn_compatibility (agent);
 
-  nice_debug ("Sending request to remove TURN allocation for refresh %p", cand);
+  nice_debug ("Agent %p : Sending request to remove TURN allocation "
+      "for refresh %p", agent, cand);
 
   if (cand->timer_source != NULL) {
     g_source_destroy (cand->timer_source);
     g_source_unref (cand->timer_source);
     cand->timer_source = NULL;
   }
+
+  g_source_destroy (cand->destroy_source);
+  g_source_unref (cand->destroy_source);
+  cand->destroy_source = NULL;
 
   username = (uint8_t *)cand->candidate->turn->username;
   username_len = (size_t) strlen (cand->candidate->turn->username);
@@ -294,7 +306,6 @@ static void refresh_prune_async (NiceAgent *agent, GSList *refreshes,
 
   for (it = refreshes; it; it = it->next) {
     CandidateRefresh *cand = it->data;
-    GSource *timeout_source = NULL;
 
     if (cand->disposing)
       continue;
@@ -304,11 +315,9 @@ static void refresh_prune_async (NiceAgent *agent, GSList *refreshes,
     cand->destroy_cb = (GDestroyNotify) on_refresh_removed;
     cand->destroy_cb_data = data;
 
-    agent_timeout_add_with_context( agent, &timeout_source,
-        "TURN refresh remove async", timeout,
-        refresh_remove_async, cand);
+    agent_timeout_add_with_context(agent, &cand->destroy_source,
+        "TURN refresh remove async", timeout, refresh_remove_async, cand);
 
-    g_source_unref (timeout_source);
     ++data->items_to_free;
   }
 
@@ -603,6 +612,36 @@ void priv_generate_candidate_credentials (NiceAgent *agent,
 
 }
 
+static gboolean
+priv_local_host_candidate_duplicate_port (NiceAgent *agent,
+  NiceCandidate *candidate)
+{
+  GSList *i, *j, *k;
+
+  if (candidate->transport == NICE_CANDIDATE_TRANSPORT_TCP_ACTIVE)
+    return FALSE;
+
+  for (i = agent->streams; i; i = i->next) {
+    NiceStream *stream = i->data;
+
+    for (j = stream->components; j; j = j->next) {
+      NiceComponent *component = j->data;
+
+      for (k = component->local_candidates; k; k = k->next) {
+        NiceCandidate *c = k->data;
+
+        if (candidate->transport == c->transport &&
+            nice_address_ip_version (&candidate->addr) ==
+            nice_address_ip_version (&c->addr) &&
+            nice_address_get_port (&candidate->addr) ==
+            nice_address_get_port (&c->addr))
+          return TRUE;
+      }
+    }
+  }
+  return FALSE;
+}
+
 /*
  * Creates a local host candidate for 'component_id' of stream
  * 'stream_id'.
@@ -645,8 +684,6 @@ HostCandidateResult discovery_add_local_host_candidate (
         agent->reliable, FALSE);
   }
 
-  candidate->priority = ensure_unique_priority (stream, component,
-      candidate->priority);
   priv_generate_candidate_credentials (agent, candidate);
   priv_assign_foundation (agent, candidate);
 
@@ -669,6 +706,11 @@ HostCandidateResult discovery_add_local_host_candidate (
   candidate->sockptr = nicesock;
   candidate->addr = nicesock->addr;
   candidate->base_addr = nicesock->addr;
+
+  if (priv_local_host_candidate_duplicate_port (agent, candidate)) {
+    res = HOST_CANDIDATE_DUPLICATE_PORT;
+    goto errors;
+  }
 
   if (!priv_add_local_candidate_pruned (agent, stream_id, component,
           candidate)) {
@@ -737,8 +779,6 @@ discovery_add_server_reflexive_candidate (
         agent->reliable, nat_assisted);
   }
 
-  candidate->priority = ensure_unique_priority (stream, component,
-      candidate->priority);
   priv_generate_candidate_credentials (agent, candidate);
   priv_assign_foundation (agent, candidate);
 
@@ -857,8 +897,6 @@ discovery_add_relay_candidate (
         agent->reliable, FALSE);
   }
 
-  candidate->priority = ensure_unique_priority (stream, component,
-      candidate->priority);
   priv_generate_candidate_credentials (agent, candidate);
 
   /* Google uses the turn username as the candidate username */

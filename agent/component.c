@@ -503,7 +503,7 @@ nice_component_update_selected_pair (NiceAgent *agent, NiceComponent *component,
   component->selected_pair.local = pair->local;
   component->selected_pair.remote = pair->remote;
   component->selected_pair.priority = pair->priority;
-  component->selected_pair.prflx_priority = pair->prflx_priority;
+  component->selected_pair.stun_priority = pair->stun_priority;
 
   nice_component_add_valid_candidate (agent, component, pair->remote);
 }
@@ -944,8 +944,8 @@ nice_component_emit_io_callback (NiceAgent *agent, NiceComponent *component,
     return;
 
   g_assert (NICE_IS_AGENT (agent));
-  g_assert (stream_id > 0);
-  g_assert (component_id > 0);
+  g_assert_cmpuint (stream_id, >, 0);
+  g_assert_cmpuint (component_id, >, 0);
   g_assert (io_callback != NULL);
 
   /* Only allocate a closure if the callback is being deferred to an idle

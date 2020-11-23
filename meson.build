@@ -1,6 +1,6 @@
 project('libnice', 'c',
-  version: '0.1.16.1',
-  meson_version : '>= 0.49.1',
+  version: '0.1.17',
+  meson_version : '>= 0.52',
   default_options : ['warning_level=1', 'buildtype=debugoptimized'])
 
 nice_version = meson.project_version()
@@ -15,8 +15,12 @@ else
 endif
 
 # maintain compatibility with the previous libtool versioning
+# libversion has 3 parts A.B.C
+# A is the ABI version, change it if the ABI is broken, changing it resets B and C to 0. It matches soversion
+# B is the ABI age, change it on new APIs that don't break existing ones, changing it resets C to 0
+# C is the revision, change on new updates that don't change APIs
 soversion = 10
-libversion = '10.9.0'
+libversion = '10.10.0'
 
 glib_req = '>= 2.48'
 gnutls_req = '>= 2.12.0'
@@ -117,7 +121,6 @@ message('werror enabled: @0@'.format(werror))
 
 if warning_level >= 2
   warnings += [
-    '-Wextra',
     '-Wundef',
     '-Wnested-externs',
     '-Wwrite-strings',
@@ -310,7 +313,8 @@ add_test_setup('valgrind',
 			     '--error-exitcode=1',
 			     '--suppressions='+meson.current_source_dir()+'/tests/libnice.supp',
 			     '--num-callers=10'],
-	       timeout_multiplier: 10
+	       timeout_multiplier: 10,
+	       env: ['CK_FORK=no']
 	      )
 
 configure_file(output : 'config.h', configuration : cdata)
