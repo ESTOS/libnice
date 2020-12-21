@@ -49,12 +49,14 @@
 
 static int debug_enabled = 0;
 static int debug_verbose_enabled = 0;
+static int debug_timer_verbose_enabled = 0;
 
 #define NICE_DEBUG_STUN 1
 #define NICE_DEBUG_NICE 2
 #define NICE_DEBUG_PSEUDOTCP 4
 #define NICE_DEBUG_PSEUDOTCP_VERBOSE 8
 #define NICE_DEBUG_NICE_VERBOSE 16
+#define NICE_DEBUG_NICE_TIMER_VERBOSE 32
 
 static const GDebugKey keys[] = {
   { (gchar *)"stun",  NICE_DEBUG_STUN },
@@ -69,7 +71,8 @@ static const GDebugKey gkeys[] = {
   { (gchar *)"libnice",  NICE_DEBUG_NICE },
   { (gchar *)"libnice-pseudotcp",  NICE_DEBUG_PSEUDOTCP },
   { (gchar *)"libnice-pseudotcp-verbose",  NICE_DEBUG_PSEUDOTCP_VERBOSE },
-  { (gchar *)"libnice-verbose",  NICE_DEBUG_NICE_VERBOSE }
+  { (gchar *)"libnice-verbose",  NICE_DEBUG_NICE_VERBOSE },
+  { (gchar *)"libnice-timer-verbose",  NICE_DEBUG_NICE_TIMER_VERBOSE }
 };
 
 static void
@@ -113,6 +116,9 @@ void nice_debug_init (void)
 
     if (flags & NICE_DEBUG_NICE_VERBOSE)
       debug_verbose_enabled = TRUE;
+
+    if (flags & NICE_DEBUG_NICE_TIMER_VERBOSE)
+      debug_timer_verbose_enabled = TRUE;
 
     /* Set verbose before normal so that if we use 'all', then only
        normal debug is enabled, we'd need to set pseudotcp-verbose without the
@@ -166,6 +172,15 @@ void nice_debug_verbose (const char *fmt, ...)
 {
   va_list ap;
   if (debug_enabled && debug_verbose_enabled) {
+    va_start (ap, fmt);
+    g_logv (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, fmt, ap);
+    va_end (ap);
+  }
+}
+void nice_debug_timer_verbose (const char *fmt, ...)
+{
+  va_list ap;
+  if (debug_enabled && debug_timer_verbose_enabled) {
     va_start (ap, fmt);
     g_logv (G_LOG_DOMAIN, G_LOG_LEVEL_DEBUG, fmt, ap);
     va_end (ap);

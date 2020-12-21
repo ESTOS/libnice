@@ -6021,6 +6021,9 @@ timeout_cb (gpointer user_data)
 
   agent_lock (agent);
 
+  nice_debug_timer_verbose ("%s timr now:%"G_GINT64_FORMAT" function:%p user_data:%p",
+    __func__, g_get_monotonic_time (),data->function,user_data);
+
   /* A race condition might happen where the mutex above waits for the lock
    * and in the meantime another thread destroys the source.
    * In that case, we don't need to run the function since it should
@@ -6062,6 +6065,7 @@ static void agent_timeout_add_with_context_internal (NiceAgent *agent,
 
   /* Destroy any existing source. */
   if (*out != NULL) {
+    nice_debug_timer_verbose ("%s timr stop:%p",__func__,*out);
     g_source_destroy (*out);
     g_source_unref (*out);
     *out = NULL;
@@ -6075,6 +6079,10 @@ static void agent_timeout_add_with_context_internal (NiceAgent *agent,
 
   g_source_set_name (source, name);
   data = timeout_data_new (agent, function, user_data);
+
+  nice_debug_timer_verbose ("%s timr \"%s\" interval:%"G_GUINT32_FORMAT" now:%"G_GUINT64_FORMAT" end:%"G_GUINT64_FORMAT" function:%p data:%p source:%p",
+    __func__, name, interval,g_get_monotonic_time (),g_source_get_ready_time(source),function,data,source);
+  
   g_source_set_callback (source, timeout_cb, data,
       (GDestroyNotify)timeout_data_destroy);
   g_source_attach (source, agent->main_context);

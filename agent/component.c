@@ -313,6 +313,7 @@ static void
 nice_component_clear_selected_pair (NiceComponent *component)
 {
   if (component->selected_pair.keepalive.tick_source != NULL) {
+    nice_debug_timer_verbose ("%s timr stop:%p",__func__,component->selected_pair.keepalive.tick_source);
     g_source_destroy (component->selected_pair.keepalive.tick_source);
     g_source_unref (component->selected_pair.keepalive.tick_source);
     component->selected_pair.keepalive.tick_source = NULL;

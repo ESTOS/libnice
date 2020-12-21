@@ -105,8 +105,10 @@ nice_input_message_iter_compare (const NiceInputMessageIter *a,
  *      to session bandwidth -> this is not yet implemented in NICE */
 
 #define NICE_AGENT_TIMER_TA_DEFAULT 20      /* timer Ta, msecs (impl. defined) */
-#define NICE_AGENT_TIMER_TR_DEFAULT 25000   /* timer Tr, msecs (impl. defined) */
+//#define NICE_AGENT_TIMER_TR_DEFAULT 25000   /* timer Tr, msecs (impl. defined) */
+#define NICE_AGENT_TIMER_TR_DEFAULT 2000   /* timer Tr, msecs (impl. defined) */
 #define NICE_AGENT_MAX_CONNECTIVITY_CHECKS_DEFAULT 100 /* see RFC 8445 6.1.2.5 */
+#define NICE_AGENT_KEEPALIVE_STUN_MAX_RETRANSMISSIONS 3 /* RTCSP-1475 only 3 so its 2 seconds to find a STUN transmit problem */
 
 
 /* An upper limit to size of STUN packets handled (based on Ethernet
@@ -320,11 +322,13 @@ static inline gboolean nice_debug_is_enabled (void) { return FALSE; }
 static inline gboolean nice_debug_is_verbose (void) { return FALSE; }
 static inline void nice_debug (const char *fmt, ...) { }
 static inline void nice_debug_verbose (const char *fmt, ...) { }
+static inline void nice_debug_timer_verbose (const char *fmt, ...) { }
 #else
 gboolean nice_debug_is_enabled (void);
 gboolean nice_debug_is_verbose (void);
 void nice_debug (const char *fmt, ...) G_GNUC_PRINTF (1, 2);
 void nice_debug_verbose (const char *fmt, ...) G_GNUC_PRINTF (1, 2);
+void nice_debug_timer_verbose (const char *fmt, ...) G_GNUC_PRINTF (1, 2);
 #endif
 
 #if !GLIB_CHECK_VERSION(2, 59, 0)
