@@ -2364,7 +2364,14 @@ static void priv_mark_pair_nominated (NiceAgent *agent, NiceStream *stream, Nice
       if (pair->state == NICE_CHECK_SUCCEEDED &&
           pair->discovered_pair != NULL) {
         pair = pair->discovered_pair;
-        g_assert_cmpint (pair->state, ==, NICE_CHECK_DISCOVERED);
+        //RTCSP-1858 dont abort if the state is NICE_CHECK_IN_PROGRESS
+        //g_assert_cmpint (pair->state, ==, NICE_CHECK_DISCOVERED);
+        if(pair->state != NICE_CHECK_DISCOVERED)
+        {
+          nice_debug ("Agent %p : %s ERROR discovered_pair state: %c!=%c", agent, __func__,
+            priv_state_to_gchar (pair->state), priv_state_to_gchar (NICE_CHECK_DISCOVERED));
+          continue;
+        }
       }
 
       /* If the received Binding request triggered a new check to be
