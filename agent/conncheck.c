@@ -3147,7 +3147,12 @@ static guint priv_prune_pending_checks (NiceAgent *agent, NiceStream *stream, Ni
 
   /* Called when we have at least one selected pair */
   priority = component->selected_pair.priority;
-  g_assert (priority > 0);
+  /* PROCALL-2475 remove this assert because it causes a crash */
+  //g_assert (priority > 0);
+  if (priority <= 0)
+  {
+    nice_debug ("Agent %p : %s ERROR priority <= 0 state:%"G_GINT64_FORMAT"", agent, __func__, priority);
+  }
 
   nice_candidate_pair_priority_to_string (priority, prio);
   nice_debug ("Agent %p : selected pair priority is %s", agent, prio);
@@ -3246,7 +3251,14 @@ static gboolean priv_schedule_triggered_check (NiceAgent *agent, NiceStream *str
          * use the parent succeeded pair instead */
 
         if (p->succeeded_pair != NULL) {
-          g_assert_cmpint (p->state, ==, NICE_CHECK_DISCOVERED);
+          //RTCSP-2475 dont abort if the state is NICE_CHECK_IN_PROGRESS
+          //g_assert_cmpint (p->state, ==, NICE_CHECK_DISCOVERED);
+          if(p->state != NICE_CHECK_DISCOVERED)
+          {
+            nice_debug ("Agent %p : %s ERROR succeeded_pair state: %c!=%c", agent, __func__,
+              priv_state_to_gchar (p->state), priv_state_to_gchar (NICE_CHECK_DISCOVERED));
+            continue;
+          }
           p = p->succeeded_pair;
         }
 
