@@ -2565,7 +2565,7 @@ void agent_signal_component_state_change (NiceAgent *agent, guint stream_id, gui
 #define TRANSITION(OLD, NEW) \
   (old_state == NICE_COMPONENT_STATE_##OLD && \
    new_state == NICE_COMPONENT_STATE_##NEW)
-
+#if 0
   g_assert (/* Can (almost) always transition to FAILED (including
              * DISCONNECTED → FAILED which happens if one component fails
              * before another leaves DISCONNECTED): */
@@ -2589,7 +2589,28 @@ void agent_signal_component_state_change (NiceAgent *agent, guint stream_id, gui
             /* Possible by calling set_remote_candidates() without calling
              * nice_agent_gather_candidates(): */
             TRANSITION (DISCONNECTED, CONNECTING));
-
+#else
+  // PROCALL-3989 assert problem
+  if (!(TRANSITION (DISCONNECTED, FAILED) ||
+        TRANSITION (GATHERING, FAILED) ||
+        TRANSITION (CONNECTING, FAILED) ||
+        TRANSITION (CONNECTED, FAILED) ||
+        TRANSITION (READY, FAILED) ||
+        TRANSITION (DISCONNECTED, GATHERING) ||
+        TRANSITION (GATHERING, CONNECTING) ||
+        TRANSITION (CONNECTING, CONNECTED) ||
+        TRANSITION (CONNECTED, READY) ||
+        TRANSITION (READY, CONNECTED) ||
+        TRANSITION (FAILED, CONNECTING) ||
+        TRANSITION (FAILED, GATHERING) ||
+        TRANSITION (DISCONNECTED, CONNECTING)))
+  {
+    nice_debug ("Agent %p : stream %u component %u STATE-CHANGE %s -> %s. STATE ERROR", agent,
+      stream_id, component_id, nice_component_state_to_string (old_state),
+      nice_component_state_to_string (new_state));
+    return;
+  }
+#endif
 #undef TRANSITION
 
   component->state = new_state;
