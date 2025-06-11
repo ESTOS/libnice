@@ -3518,13 +3518,13 @@ nice_agent_remove_stream (
   /* note: remove items with matching stream_ids from both lists */
   conn_check_prune_stream (agent, stream);
   discovery_prune_stream (agent, stream_id);
-  refresh_prune_stream_async (agent, stream,
-      (NiceTimeoutLockedCallback) on_stream_refreshes_pruned);
-
-  agent->pruning_streams = g_slist_prepend (agent->pruning_streams, stream);
 
   /* Remove the stream and signal its removal. */
   agent->streams = g_slist_remove (agent->streams, stream);
+  agent->pruning_streams = g_slist_prepend (agent->pruning_streams, stream);
+
+  refresh_prune_stream_async (agent, stream,
+      (NiceTimeoutLockedCallback) on_stream_refreshes_pruned);
 
   if (!agent->streams)
     priv_remove_keepalive_timer (agent);
@@ -5502,6 +5502,24 @@ nice_agent_dispose (GObject *object)
   g_slist_free (agent->local_addresses);
   agent->local_addresses = NULL;
 
+  if (agent->refresh_list)
+    g_warning ("Agent %p : We still have alive TURN refreshes. Consider "
+        "using nice_agent_close_async() to prune them before releasing the "
+        "agent.", agent);
+
+  /* We must free refreshes before closing streams because a refresh
+   * callback data may contain a pointer to a stream to be freed, when
+   * previously called in the context of a stream removal, by
+   * refresh_prune_stream_async()
+   */
+  for (i = agent->refresh_list; i;) {
+    GSList *next = i->next;
+    CandidateRefresh *refresh = i->data;
+
+    refresh_free (agent, refresh);
+    i = next;
+  }
+
   while (agent->streams) {
     NiceStream *s = agent->streams->data;
 
@@ -7016,6 +7034,15 @@ static gboolean
 on_agent_refreshes_pruned (NiceAgent *agent, gpointer user_data)
 {
   GTask *task = user_data;
+
+  if (agent->refresh_list) {
+    GSource *timeout_source = NULL;
+    agent_timeout_add_with_context (agent, &timeout_source,
+        "Async refresh prune", agent->stun_initial_timeout,
+        on_agent_refreshes_pruned, user_data);
+    g_source_unref (timeout_source);
+    return G_SOURCE_REMOVE;
+  }
 
   /* This is called from a timeout cb with agent lock held */
 
