@@ -106,7 +106,9 @@ priv_state_to_gchar (NiceCheckState state)
     case NICE_CHECK_DISCOVERED:
       return 'D';
     default:
-      g_assert_not_reached ();
+      // PROCALL-6837
+      //g_assert_not_reached ();
+      return 'X';
   }
 }
 
