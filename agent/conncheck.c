@@ -4648,7 +4648,6 @@ gboolean conn_check_handle_inbound_stun (NiceAgent *agent, NiceStream *stream,
   NiceCandidate *remote_candidate2 = NULL;
   NiceCandidate *local_candidate = NULL;
   gboolean discovery_msg = FALSE;
-  gboolean not_original_remote_candidate = FALSE;
 
   nice_address_copy_to_sockaddr (from, &sockaddr.addr);
 
@@ -4933,26 +4932,12 @@ gboolean conn_check_handle_inbound_stun (NiceAgent *agent, NiceStream *stream,
           else
             conn_check_add_for_candidate (agent, stream->id, component, remote_candidate);
         }
-        not_original_remote_candidate = TRUE;
       }
 
       nice_component_add_valid_candidate (agent, component, remote_candidate);
 
-      /*  PROCALL-7896 dont send STUN-CC RESP if there is no remote candidate
-          otherwise we get Data and we have still no component->selected_pair
-      */
-      if (not_original_remote_candidate == TRUE ||
-        (!component->selected_pair.remote &&
-          stun_message_get_class (&req) == STUN_REQUEST &&
-          remote_candidate->type == NICE_CANDIDATE_TYPE_PEER_REFLEXIVE))
-      {
-        nice_debug ("Agent %p : dont send STUN-CC RESP first:%d", agent, not_original_remote_candidate);
-      }
-      else
-      {
-        priv_reply_to_conn_check (agent, stream, component, local_candidate,
+      priv_reply_to_conn_check (agent, stream, component, local_candidate,
           remote_candidate, from, nicesock, rbuf_len, &msg, use_candidate);
-      }
 
       if (stream->remote_ufrag[0] == 0) {
         /* case: We've got a valid binding request to a local candidate
