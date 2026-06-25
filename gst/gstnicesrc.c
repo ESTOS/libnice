@@ -209,6 +209,18 @@ gst_nice_src_read_callback (NiceAgent *agent,
 
   GST_LOG_OBJECT (nicesrc, "Got buffer, adding it to buffer list and getting out of the main loop");
 
+  // PROCALL-7896 block DTLS-buffer if there is no selected pair
+  if (len != 0 && buf && buf[0] > 19 && buf[0] < 64) {
+    NiceCandidate *local = NULL;
+    NiceCandidate *remote = NULL;
+
+    if (!nice_agent_get_selected_pair(agent, stream_id, component_id, &local, &remote))
+    {
+      GST_DEBUG_OBJECT (agent, "block DTLS Content Type:%d because there is no selected_pair",buf[0]);
+      return;
+    }
+  }
+
   buffer = gst_buffer_new_allocate (NULL, len, NULL);
   gst_buffer_fill (buffer, 0, buf, len);
   GST_BUFFER_DTS (buffer) = GST_BUFFER_PTS (buffer) = dts;

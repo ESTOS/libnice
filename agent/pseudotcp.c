@@ -2201,7 +2201,7 @@ attempt_send(PseudoTcpSocket *self, SendFlags sflags)
       bFirst = FALSE;
       DEBUG (PSEUDO_TCP_DEBUG_VERBOSE, "[cwnd: %u  nWindow: %u  nInFlight: %u "
           "nAvailable: %u nQueued: %" G_GSIZE_FORMAT " nEmpty: %" G_GSIZE_FORMAT
-          "  nWaiting: %zu ssthresh: %u]",
+          "  nWaiting: (%" G_GSIZE_FORMAT ") ssthresh: %u]",
           priv->cwnd, nWindow, nInFlight, nAvailable, snd_buffered,
           available_space, snd_buffered - nInFlight, priv->ssthresh);
     }

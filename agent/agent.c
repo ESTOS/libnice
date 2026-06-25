@@ -131,6 +131,7 @@ enum
   PROP_IDLE_TIMEOUT,
   PROP_CONSENT_FRESHNESS,
   PROP_CLOSE_FORCED,
+  PROP_FORCE_NOMINATION_MODE,
 };
 
 
@@ -551,6 +552,21 @@ nice_agent_class_init (NiceAgentClass *klass)
          50, 60000,
 	 DEFAULT_IDLE_TIMEOUT,
          G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
+
+  /**
+   * NiceAgent:force-nomination-mode:
+   *
+   * Avoid switching the nomination mode regardless the compatibility
+   *
+   * Since: 0.1.15.1??
+   */
+  g_object_class_install_property (gobject_class, PROP_FORCE_NOMINATION_MODE,
+      g_param_spec_boolean (
+        "force-nomination-mode",
+        "force ICE nomination mode",
+        "if force_nomination_mode==TRUE then dont switch the mode",
+        FALSE, /* use full mode by default */
+        G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
 
   /**
    * NiceAgent:proxy-ip:
@@ -1329,6 +1345,7 @@ nice_agent_init (NiceAgent *agent)
   agent->nomination_mode = NICE_NOMINATION_MODE_AGGRESSIVE;
   agent->support_renomination = FALSE;
   agent->idle_timeout = DEFAULT_IDLE_TIMEOUT;
+  agent->force_nomination_mode = FALSE;
 
   agent->discovery_list = NULL;
   agent->discovery_unsched_items = 0;
@@ -1462,6 +1479,10 @@ nice_agent_get_property (
 
     case PROP_IDLE_TIMEOUT:
       g_value_set_uint (value, agent->idle_timeout);
+      break;
+
+    case PROP_FORCE_NOMINATION_MODE:
+      g_value_set_boolean (value, agent->force_nomination_mode);
       break;
 
     case PROP_PROXY_IP:
@@ -1690,6 +1711,10 @@ nice_agent_set_property (
 
     case PROP_NOMINATION_MODE:
       agent->nomination_mode = g_value_get_enum (value);
+      break;
+
+    case PROP_FORCE_NOMINATION_MODE:
+      agent->force_nomination_mode = g_value_get_boolean (value);
       break;
 
     case PROP_SUPPORT_RENOMINATION:
@@ -2666,7 +2691,8 @@ void agent_signal_component_state_change (NiceAgent *agent, guint stream_id, gui
   (old_state == NICE_COMPONENT_STATE_##OLD && \
    new_state == NICE_COMPONENT_STATE_##NEW)
 
-  g_assert (/* Can (almost) always transition to FAILED (including
+  // PROCALL-3989 assert problem
+  if (!(/* Can (almost) always transition to FAILED (including
              * DISCONNECTED → FAILED which happens if one component fails
              * before another leaves DISCONNECTED): */
             (new_state == NICE_COMPONENT_STATE_FAILED) ||
@@ -2690,7 +2716,13 @@ void agent_signal_component_state_change (NiceAgent *agent, guint stream_id, gui
             TRANSITION (CONNECTED, CONNECTING) ||
             /* with ICE restart in nice_stream_restart(),
              * it can always go back to gathering */
-            (new_state == NICE_COMPONENT_STATE_GATHERING));
+            (new_state == NICE_COMPONENT_STATE_GATHERING)))
+  {
+    nice_debug ("Agent %p : stream %u component %u STATE-CHANGE %s -> %s. STATE ERROR", agent,
+      stream_id, component_id, nice_component_state_to_string (old_state),
+      nice_component_state_to_string (new_state));
+    return;
+  }
 
 #undef TRANSITION
 
@@ -4339,7 +4371,8 @@ static gboolean priv_add_remote_candidate (
           username, password, priority);
     }
 
-    if (NICE_AGENT_IS_COMPATIBLE_WITH_RFC5245_OR_OC2007R2 (agent)) {
+    if (NICE_AGENT_IS_COMPATIBLE_WITH_RFC5245_OR_OC2007R2 (agent) &&
+      agent->force_nomination_mode != TRUE) {
       /* note:  If there are TCP candidates for a media stream,
        * a controlling agent MUST use the regular selection algorithm,
        * RFC 6544, sect 8, "Concluding ICE Processing"
@@ -6372,7 +6405,6 @@ component_io_cb (GSocket *gsocket, GIOCondition condition, gpointer user_data)
   } else if (agent->reliable &&
       nice_socket_is_reliable (socket_source->socket)) {
     NiceInputMessageIter *iter = &component->recv_messages_iter;
-    gsize total_bytes_received = 0;
 
     while (has_io_callback ||
         (component->recv_messages != NULL &&
@@ -6418,7 +6450,6 @@ component_io_cb (GSocket *gsocket, GIOCondition condition, gpointer user_data)
           continue;
 
         msg->length += m.length;
-        total_bytes_received += m.length;
 
         if (!agent->bytestream_tcp)
           break;
@@ -6491,7 +6522,8 @@ component_io_cb (GSocket *gsocket, GIOCondition condition, gpointer user_data)
       } else if (retval == RECV_ERROR) {
         /* Other error. */
         nice_debug ("%s: %p: error receiving message", G_STRFUNC, agent);
-        remove_source = TRUE;
+        // RTCSP-1297 dont close the existing TURN Socket because we get an ICMP ttl on a not working host binding req
+        // remove_source = TRUE;
         break;
       }
 
@@ -6820,6 +6852,9 @@ timeout_cb (gpointer user_data)
 
   agent_lock (agent);
 
+  nice_debug_timer_verbose ("%s timr now:%"G_GINT64_FORMAT" function:%p user_data:%p",
+    __func__, g_get_monotonic_time (),data->function,user_data);
+
   /* A race condition might happen where the mutex above waits for the lock
    * and in the meantime another thread destroys the source.
    * In that case, we don't need to run the function since it should
@@ -6861,6 +6896,7 @@ static void agent_timeout_add_with_context_internal (NiceAgent *agent,
 
   /* Destroy any existing source. */
   if (*out != NULL) {
+    nice_debug_timer_verbose ("%s timr stop:%p",__func__,*out);
     g_source_destroy (*out);
     g_source_unref (*out);
     *out = NULL;
@@ -6874,6 +6910,10 @@ static void agent_timeout_add_with_context_internal (NiceAgent *agent,
 
   g_source_set_name (source, name);
   data = timeout_data_new (agent, function, user_data);
+
+  nice_debug_timer_verbose ("%s timr \"%s\" interval:%"G_GUINT32_FORMAT" now:%"G_GUINT64_FORMAT" end:%"G_GUINT64_FORMAT" function:%p data:%p source:%p",
+    __func__, name, interval,g_get_monotonic_time (),g_source_get_ready_time(source),function,data,source);
+  
   g_source_set_callback (source, timeout_cb, data,
       (GDestroyNotify)timeout_data_destroy);
   g_source_attach (source, agent->main_context);

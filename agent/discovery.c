@@ -84,6 +84,7 @@ void discovery_free (NiceAgent *agent)
   agent->discovery_unsched_items = 0;
 
   if (agent->discovery_timer_source != NULL) {
+    nice_debug_timer_verbose ("%s timr stop:%p",__func__,agent->discovery_timer_source);
     g_source_destroy (agent->discovery_timer_source);
     g_source_unref (agent->discovery_timer_source);
     agent->discovery_timer_source = NULL;
@@ -155,16 +156,19 @@ void refresh_free (NiceAgent *agent, CandidateRefresh *cand)
   agent->pruning_refreshes = g_slist_remove (agent->pruning_refreshes, cand);
 
   if (cand->timer_source != NULL) {
+    nice_debug_timer_verbose ("%s timr stop:%p",__func__,cand->timer_source);
     g_source_destroy (cand->timer_source);
     g_clear_pointer (&cand->timer_source, g_source_unref);
   }
 
   if (cand->tick_source) {
+    nice_debug_timer_verbose ("%s timr stop:%p",__func__,cand->tick_source);
     g_source_destroy (cand->tick_source);
     g_clear_pointer (&cand->tick_source, g_source_unref);
   }
 
   if (cand->destroy_source) {
+    nice_debug_timer_verbose ("%s timr stop:%p",__func__,cand->destroy_source);
     g_source_destroy (cand->destroy_source);
     g_source_unref (cand->destroy_source);
   }
@@ -179,10 +183,14 @@ void refresh_free (NiceAgent *agent, CandidateRefresh *cand)
 static gboolean on_refresh_remove_timeout (NiceAgent *agent,
     CandidateRefresh *cand)
 {
+  nice_debug_timer_verbose ("%s timr",__func__);
+
   switch (stun_timer_refresh (&cand->timer)) {
     case STUN_USAGE_TIMER_RETURN_TIMEOUT:
       {
         StunTransactionId id;
+
+        nice_debug_timer_verbose ("%s timr STUN_USAGE_TIMER_RETURN_TIMEOUT", __func__);
 
         nice_debug ("Agent %p : TURN deallocate for refresh %p timed out",
             agent, cand);
@@ -194,6 +202,7 @@ static gboolean on_refresh_remove_timeout (NiceAgent *agent,
         break;
       }
     case STUN_USAGE_TIMER_RETURN_RETRANSMIT:
+      nice_debug_timer_verbose ("%s timr STUN_USAGE_TIMER_RETURN_RETRANSMIT", __func__);
       nice_debug ("Agent %p : Retransmitting TURN deallocate for refresh %p",
           agent, cand);
 
@@ -229,15 +238,19 @@ static gboolean refresh_remove_async (NiceAgent *agent, gpointer pointer)
   NiceCandidateImpl *c = (NiceCandidateImpl *) cand->candidate;
   StunUsageTurnCompatibility turn_compat = agent_to_turn_compatibility (agent);
 
+  nice_debug_timer_verbose ("%s timr",__func__);
+
   nice_debug ("Agent %p : Sending request to remove TURN allocation "
       "for refresh %p", agent, cand);
 
   if (cand->timer_source != NULL) {
+    nice_debug_timer_verbose ("%s timr stop:%p",__func__,cand->timer_source);
     g_source_destroy (cand->timer_source);
     g_source_unref (cand->timer_source);
     cand->timer_source = NULL;
   }
 
+  nice_debug_timer_verbose ("%s timr stop:%p",__func__,cand->destroy_source);
   g_source_destroy (cand->destroy_source);
   g_source_unref (cand->destroy_source);
   cand->destroy_source = NULL;
@@ -282,6 +295,19 @@ static gboolean refresh_remove_async (NiceAgent *agent, gpointer pointer)
     } else {
       stun_timer_start (&cand->timer, agent->stun_initial_timeout,
           agent->stun_max_retransmissions);
+      nice_debug_timer_verbose ("%s timr stun_timer_start%p "
+                          "sec:%li "
+                          "usec:%li "
+                          "delay:%"G_GUINT32_FORMAT" "
+                          "retrans:%"G_GUINT32_FORMAT" "
+                          "max_retrans:%"G_GUINT32_FORMAT"",
+                        __func__,
+                        &cand->timer,
+                        cand->timer.deadline.tv_sec,
+                        cand->timer.deadline.tv_usec,
+                        cand->timer.delay,
+                        cand->timer.retransmissions,
+                        cand->timer.max_retransmissions);
 
       agent_timeout_add_with_context (agent, &cand->tick_source,
           "TURN deallocate retransmission", stun_timer_remainder (&cand->timer),
@@ -981,7 +1007,8 @@ discovery_add_relay_candidate (
   NiceCandidateTransport transport,
   NiceSocket *base_socket,
   TurnServer *turn,
-  uint32_t *lifetime)
+  uint32_t *lifetime,
+  NiceAddress *niceaddr_relay_mapped)
 {
   NiceCandidate *candidate;
   NiceCandidateImpl *c;
@@ -1009,7 +1036,7 @@ discovery_add_relay_candidate (
     goto errors;
 
   c->sockptr = relay_socket;
-  candidate->base_addr = base_socket->addr;
+  candidate->base_addr = *niceaddr_relay_mapped;
 
   if (agent->compatibility == NICE_COMPATIBILITY_GOOGLE) {
     candidate->priority = nice_candidate_jingle_priority (candidate);
@@ -1332,6 +1359,19 @@ static gboolean priv_discovery_tick_unlocked (NiceAgent *agent)
                 agent->stun_initial_timeout,
                 agent->stun_max_retransmissions);
           }
+          nice_debug_timer_verbose ("%s timr stun_timer_start:%p "
+                          "sec:%li "
+                          "usec:%li "
+                          "delay:%"G_GUINT32_FORMAT" "
+                          "retrans:%"G_GUINT32_FORMAT" "
+                          "max_retrans:%"G_GUINT32_FORMAT"",
+                        __func__,
+                        &cand->timer,
+                        cand->timer.deadline.tv_sec,
+                        cand->timer.deadline.tv_usec,
+                        cand->timer.delay,
+                        cand->timer.retransmissions,
+                        cand->timer.max_retransmissions);
 
           cand->next_tick = g_get_monotonic_time ();
           ++need_pacing;
@@ -1370,6 +1410,8 @@ static gboolean priv_discovery_tick_unlocked (NiceAgent *agent)
               /* case: error, abort processing */
               StunTransactionId id;
 
+              nice_debug_timer_verbose ("%s timr STUN_USAGE_TIMER_RETURN_TIMEOUT", __func__);
+
               stun_message_id (&cand->stun_message, id);
               stun_agent_forget_transaction (&cand->stun_agent, id);
 
@@ -1383,6 +1425,8 @@ static gboolean priv_discovery_tick_unlocked (NiceAgent *agent)
             {
               /* case: not ready complete, so schedule next timeout */
               unsigned int timeout = stun_timer_remainder (&cand->timer);
+
+              nice_debug_timer_verbose ("%s timr STUN_USAGE_TIMER_RETURN_RETRANSMIT", __func__);
 
               stun_debug ("STUN transaction retransmitted (timeout %dms).",
                   timeout);
@@ -1402,6 +1446,7 @@ static gboolean priv_discovery_tick_unlocked (NiceAgent *agent)
           case STUN_USAGE_TIMER_RETURN_SUCCESS:
             {
               unsigned int timeout = stun_timer_remainder (&cand->timer);
+              nice_debug_timer_verbose ("%s timr STUN_USAGE_TIMER_RETURN_SUCCESS", __func__);
 
               cand->next_tick = now + (timeout * 1000);
 
@@ -1441,9 +1486,12 @@ static gboolean priv_discovery_tick_agent_locked (NiceAgent *agent,
 {
   gboolean ret;
 
+  nice_debug_timer_verbose ("%s timr",__func__);
+
   ret = priv_discovery_tick_unlocked (agent);
   if (ret == FALSE) {
     if (agent->discovery_timer_source != NULL) {
+      nice_debug_timer_verbose ("%s timr stop:%p",__func__,agent->discovery_timer_source);
       g_source_destroy (agent->discovery_timer_source);
       g_source_unref (agent->discovery_timer_source);
       agent->discovery_timer_source = NULL;

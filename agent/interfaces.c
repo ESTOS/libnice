@@ -723,7 +723,8 @@ nice_interfaces_get_local_ips (gboolean include_loopback)
 {
   IP_ADAPTER_ADDRESSES *addresses, *a;
   DWORD pref = 0;
-  GList *ret = NULL;
+  GList *bestips = NULL;
+  GList *otherips = NULL;
 #ifdef IGNORED_IFACE_PREFIX
   const gchar **prefix;
   gboolean ignored;
@@ -806,15 +807,18 @@ nice_interfaces_get_local_ips (gboolean include_loopback)
       nice_debug ("Adapter %S IP address: %s", a->FriendlyName, addr_string);
 
       if (a->IfIndex == pref || a->Ipv6IfIndex == pref)
-        ret = g_list_prepend (ret, addr_string);
+        bestips = g_list_append (bestips, addr_string);
       else
-        ret = g_list_append (ret, addr_string);
+        otherips = g_list_append (otherips, addr_string);
     }
   }
 
   g_free (addresses);
 
-  return ret;
+  if (otherips)
+	  bestips = g_list_concat (bestips, otherips);
+
+  return bestips;
 }
 
 gchar *

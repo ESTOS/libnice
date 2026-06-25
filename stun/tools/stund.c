@@ -44,6 +44,8 @@
 #define _XPG4_2 1
 #endif
 
+#ifndef _WIN32
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -62,7 +64,7 @@
 #endif
 
 #ifdef HAVE_UNISTD_H
-# include <unistd.h>
+#include <unistd.h>
 #else
 # define close(fd) _close(fd)
 #endif
@@ -329,3 +331,8 @@ int main (int argc, char *argv[])
   return run (family, IPPROTO_UDP, port) ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 
+#else
+int main (int argc, char **argv) {
+  return 0;
+}
+#endif

@@ -1151,10 +1151,12 @@ priv_binding_expired_timeout (gpointer data)
   }
 
   nice_debug ("Permission expired, refresh failed");
+  source = g_main_current_source ();
 
   /* find current binding and destroy it */
   for (i = priv->channels ; i; i = i->next) {
     ChannelBinding *b = i->data;
+
     if (b->timeout_source == source) {
       priv->channels = g_list_remove (priv->channels, b);
       /* Make sure we don't free a currently being-refreshed binding */
